@@ -67,6 +67,7 @@ const chatSlice = createSlice({
     conversations: [],
     messagesByConversation: {},
     loading: false,
+    messagesLoading: false,
     error: null,
   },
   reducers: {
@@ -160,15 +161,15 @@ const chatSlice = createSlice({
         state.error = action.payload;
       })
       .addCase(fetchMessages.pending, (state) => {
-        state.loading = true;
+        state.messagesLoading = true;
         state.error = null;
       })
       .addCase(fetchMessages.fulfilled, (state, action) => {
-        state.loading = false;
+        state.messagesLoading = false;
         state.messagesByConversation[action.payload.conversationId] = action.payload.messages || [];
       })
       .addCase(fetchMessages.rejected, (state, action) => {
-        state.loading = false;
+        state.messagesLoading = false;
         state.error = action.payload;
       })
       .addCase(createConversation.pending, (state) => {
