@@ -1,0 +1,18 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "AI_Module",
+    "develop",
+    "main"
+  ],
+  "parent": {
+    "AI_Module": "main",
+    "develop": "main",
+    "main": null
+  },
+  "order": [
+    "main",
+    "AI_Module",
+    "develop"
+  ]
+}

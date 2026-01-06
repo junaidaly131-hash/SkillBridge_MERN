@@ -3,10 +3,12 @@ import { useDispatch, useSelector } from "react-redux";
 import { X, Loader2, Upload, FileText, Image, Trash2 } from "lucide-react";
 import Button from "../../ui/Button";
 import { addCertification } from "../../store/profileSlice";
+import { useToast } from "../../ui/Toast/ToastContext";
 
 function AddCertificationModal({ isOpen, onClose, mode = "add", initialCert = null, onSubmit }) {
   const dispatch = useDispatch();
   const { updateLoading } = useSelector((state) => state.profile);
+  const toast = useToast();
   const fileInputRef = useRef(null);
 
   const [isClosing, setIsClosing] = useState(false);
@@ -103,6 +105,7 @@ function AddCertificationModal({ isOpen, onClose, mode = "add", initialCert = nu
           year: formData.year,
           file: file,
         });
+        toast.success(`Certification "${formData.name.trim()}" updated successfully!`);
       } else {
         await dispatch(
           addCertification({
@@ -112,10 +115,12 @@ function AddCertificationModal({ isOpen, onClose, mode = "add", initialCert = nu
             file: file,
           })
         ).unwrap();
+        toast.success(`Certification "${formData.name.trim()}" added successfully!`);
       }
       handleClose();
     } catch (err) {
       setError(err || "Failed to add certification");
+      toast.error(err || "Failed to add certification");
     }
   };
 

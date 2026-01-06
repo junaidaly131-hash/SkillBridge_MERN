@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { X, Loader2 } from "lucide-react";
 import Button from "../../ui/Button";
 import { addTeachingSkill, addLearningSkill } from "../../store/profileSlice";
+import { useToast } from "../../ui/Toast/ToastContext";
 
 const skillSuggestions = [
   "React Development",
@@ -60,6 +61,7 @@ const skillSuggestions = [
 function AddSkillModal({ isOpen, onClose, type, title }) {
   const dispatch = useDispatch();
   const { updateLoading } = useSelector((state) => state.profile);
+  const toast = useToast();
 
   const [isClosing, setIsClosing] = useState(false);
   const [skillName, setSkillName] = useState("");
@@ -111,12 +113,15 @@ function AddSkillModal({ isOpen, onClose, type, title }) {
     try {
       if (type === "teaching") {
         await dispatch(addTeachingSkill(skillName.trim())).unwrap();
+        toast.success(`Teaching skill "${skillName.trim()}" added successfully!`);
       } else {
         await dispatch(addLearningSkill(skillName.trim())).unwrap();
+        toast.success(`Learning skill "${skillName.trim()}" added successfully!`);
       }
       handleClose();
     } catch (err) {
       setError(err || "Failed to add skill");
+      toast.error(err || "Failed to add skill");
     }
   };
 
