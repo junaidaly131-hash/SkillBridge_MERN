@@ -37,9 +37,13 @@ const SECRET_KEY = process.env.SAFEPAY_SECRET_KEY || process.env.SAFEPAY_WEBHOOK
 
 const safepay = new Safepay(SECRET_KEY, { authType: 'secret', host: API_HOST });
 
-// Confirmed live: the only intent the sandbox accepts for this merchant.
-// 'PAYMENT' is rejected outright with "unsupported or invalid intent".
-const INTENT = 'CYBERSOURCE';
+// Confirmed live in SANDBOX: 'CYBERSOURCE' is the only intent this merchant
+// account accepts; 'PAYMENT' is rejected with "unsupported or invalid intent".
+//
+// Whether production uses the same value depends on which processor the live
+// merchant account is routed through, which only Safepay can confirm. It is
+// read from the environment so that answer costs an env var, not a deploy.
+const INTENT = process.env.SAFEPAY_INTENT || 'CYBERSOURCE';
 
 // V2 takes the amount in MINOR units (paisas) - the exact opposite of V1,
 // where `amount: 500` meant Rs 500. Confirmed live: a session created with
@@ -47,6 +51,35 @@ const INTENT = 'CYBERSOURCE';
 // "500.00". Getting this backwards would silently charge 1/100th of the
 // pack price, so the conversion lives here and nowhere else.
 const PAISAS_PER_RUPEE = 100;
+
+/**
+ * Base URL Safepay sends the buyer back to after paying.
+ *
+ * The localhost default is fine in sandbox and fatal in production: the buyer's
+ * browser would be redirected to their OWN machine, so the money moves and they
+ * land on a dead page with no idea whether it worked. Refusing to build the
+ * checkout at all is far better than discovering this from a customer.
+ */
+export function resolveFrontendBaseUrl() {
+  const raw = (process.env.FRONTEND_URL || '').trim().replace(/\/+$/, '');
+
+  if (!raw) {
+    if (SAFEPAY_ENV === 'production') {
+      throw new Error(
+        'FRONTEND_URL is not set. Safepay needs a public URL to return the buyer to after payment.'
+      );
+    }
+    return 'http://localhost:5173';
+  }
+
+  if (SAFEPAY_ENV === 'production' && /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(raw)) {
+    throw new Error(
+      `FRONTEND_URL points at ${raw} while SAFEPAY_ENV is production - the post-payment redirect would never reach the buyer.`
+    );
+  }
+
+  return raw;
+}
 
 /**
  * Creates a payment session and returns its tracker token.
@@ -120,6 +153,39 @@ export function verifyWebhookSignature(rawBody, signature) {
   const b = Buffer.from(String(signature), 'utf8');
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * One line at startup saying which Safepay settings are present. Names and
+ * set/missing only - never a value, not even a truncated one, because these
+ * logs are retained by the host and read by whoever has dashboard access.
+ *
+ * This exists because a silently-missing variable is the failure mode that
+ * costs the most: the app starts, serves fine, and only breaks at the moment a
+ * real buyer tries to pay.
+ */
+export function describeSafepayConfig() {
+  const required = {
+    SAFEPAY_API_KEY: process.env.SAFEPAY_API_KEY,
+    SAFEPAY_SECRET_KEY: process.env.SAFEPAY_SECRET_KEY || process.env.SAFEPAY_WEBHOOK_SECRET,
+    SAFEPAY_WEBHOOK_SECRET: process.env.SAFEPAY_WEBHOOK_SECRET,
+    FRONTEND_URL: process.env.FRONTEND_URL,
+  };
+
+  const missing = Object.entries(required)
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+
+  console.log(
+    `Safepay: env=${SAFEPAY_ENV} intent=${INTENT} api=${API_HOST} ` +
+    `${missing.length ? `MISSING=[${missing.join(', ')}]` : 'all required settings present'}`
+  );
+
+  if (SAFEPAY_ENV !== 'production') {
+    console.log('Safepay: running in SANDBOX - no real money will move.');
+  }
+
+  return { env: SAFEPAY_ENV, missing };
 }
 
 export default safepay;

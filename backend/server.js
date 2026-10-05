@@ -8,6 +8,7 @@ import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { connectDB } from './config/database.js';
+import { describeSafepayConfig } from './config/safepay.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import chatRoutes from './routes/chat.routes.js';
@@ -40,15 +41,22 @@ dotenv.config({ path: join(__dirname, '.env') });
 const app = express();
 const server = http.createServer(app);
 
+// One list for both the HTTP API and the socket server, so they can't drift
+// apart. FRONTEND_URL is folded in: it is already the domain Safepay redirects
+// buyers back to, so pointing it at a new domain shouldn't also require a code
+// change here to stop CORS rejecting that same domain.
+const ALLOWED_ORIGINS = [
+  'https://skill-bridge-mern.vercel.app', // Vercel deployment
+  'https://skill-bridge.me', // Custom domain (apex)
+  'https://www.skill-bridge.me', // Custom domain (www)
+  'http://localhost:5173', // Local development
+  'http://localhost:3000',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.trim().replace(/\/+$/, '')] : []),
+].filter((v, i, all) => all.indexOf(v) === i);
+
 const io = new SocketIOServer(server, {
   cors: {
-    origin: [
-      'https://skill-bridge-mern.vercel.app', // Your Vercel frontend URL
-      'https://skill-bridge.me', // Custom domain (apex)
-      'https://www.skill-bridge.me', // Custom domain (www)
-      'http://localhost:5173', // Keep for local development
-      'http://localhost:3000'
-    ],
+    origin: ALLOWED_ORIGINS,
     credentials: true,
   },
 });
@@ -59,13 +67,7 @@ setSocketIO(io);
 
 // Middleware
 app.use(cors({
-  origin: [
-    'https://skill-bridge-mern.vercel.app', // Your Vercel frontend URL
-    'https://skill-bridge.me', // Custom domain (apex)
-    'https://www.skill-bridge.me', // Custom domain (www)
-    'http://localhost:5173', // Keep for local development
-    'http://localhost:3000'
-  ],
+  origin: ALLOWED_ORIGINS,
   credentials: true
 }));
 // Safepay signs its webhooks as an HMAC over the RAW body, so those bytes must
@@ -251,6 +253,8 @@ await connectDB();
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  // Names and set/missing only, never values - see describeSafepayConfig.
+  describeSafepayConfig();
   startMeetingReminderJob();
   startMeetingCompletionJob();
 });

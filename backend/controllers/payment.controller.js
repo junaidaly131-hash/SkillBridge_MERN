@@ -2,6 +2,7 @@ import {
   createHostedCheckoutUrl,
   createPaymentSession,
   fetchTrackerStatus,
+  resolveFrontendBaseUrl,
   verifyWebhookSignature,
 } from '../config/safepay.js';
 import { getPack, listPackages } from '../config/creditPacks.js';
@@ -146,10 +147,20 @@ async function checkAndFinalizeTracker(transaction) {
   // existed to inspect. Rather than guess and risk crediting a cancelled
   // payment, an ended tracker with no recognised success marker is logged in
   // full and left pending for a human to settle.
-  const successMarker = data.transaction || data.charge || data.payment
-    || (Array.isArray(data.payments) && data.payments.length > 0 ? data.payments : null);
+  const MARKERS = ['transaction', 'charge', 'payment'];
+  let matchedMarker = MARKERS.find((key) => data[key]) || null;
+  if (!matchedMarker && Array.isArray(data.payments) && data.payments.length > 0) {
+    matchedMarker = 'payments';
+  }
 
-  if (successMarker) {
+  if (matchedMarker) {
+    // Which field proved the payment is recorded, not just that one did. The
+    // marker set above was inferred rather than documented, so naming the one
+    // that actually fires lets the guesses be narrowed to the real field before
+    // this runs against live money. Field name only - no payload, no PII.
+    console.log(
+      `Safepay tracker ${transaction.safepayTrackerToken} settled via marker "${matchedMarker}"`
+    );
     await finalizeCompletedTransaction(
       transaction,
       { via: 'reporter_tracker_status', data },
@@ -286,8 +297,11 @@ export const createCheckout = async (req, res) => {
       // V2 Express Checkout. Two steps, both confirmed live:
       //   1. payments.session.setup -> tracker token
       //   2. client.passport.create + local URL assembly -> hosted checkout URL
-      // `amount` is the MAJOR unit (plain rupees), not paisas: sending
-      // amountPKR * 100 for a Rs 500 pack once produced a real Rs 50,000 charge.
+      //
+      // `amountPKR` is plain rupees HERE. The rupees -> paisas conversion that
+      // V2 requires happens inside createPaymentSession and nowhere else, so
+      // don't multiply before passing it in. (A V1-era note here used to claim
+      // the API itself took rupees, which is the opposite of what V2 does.)
       const tracker = await createPaymentSession({
         amountPKR: pack.amountPKR,
         orderId: transaction._id.toString(),
@@ -296,7 +310,10 @@ export const createCheckout = async (req, res) => {
       transaction.safepayTrackerToken = tracker;
       await transaction.save();
 
-      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      // Throws in production if FRONTEND_URL is missing or still points at
+      // localhost - see resolveFrontendBaseUrl. The catch below marks the
+      // transaction failed, so nobody is left with a pending charge.
+      const frontendUrl = resolveFrontendBaseUrl();
 
       // redirectUrl deliberately carries no query string of its own - Safepay
       // appends its own params, and a pre-existing `?` turned the result into
