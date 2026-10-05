@@ -4,10 +4,103 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Everything below is STATIC on purpose.
+
+      Social preview crawlers (WhatsApp, LinkedIn, Facebook, Slack, iMessage)
+      do not run JavaScript. They read this file and nothing else, so anything
+      React sets at runtime is invisible to them. That makes these tags the only
+      thing standing between a shared link and a blank grey card.
+
+      React does override the title and description per route for Google, which
+      does run JS - see usePageMeta in src/hooks/usePageMeta.js. The values here
+      are the site-wide defaults and the ones every share preview will use.
+
+      Canonical host is www. The apex redirects to it, and robots.txt, the
+      sitemap and og:url all agree, so Google is never left choosing a winner.
+    -->
+    <title>SkillBridge — Teach what you know. Learn what you don't.</title>
+    <meta
+      name="description"
+      content="SkillBridge is a skill-exchange marketplace in Pakistan. Book one-on-one sessions with verified teachers, or earn by teaching what you already know."
+    />
+    <link rel="canonical" href="https://www.skill-bridge.me/" />
+
+    <!-- Open Graph (WhatsApp, LinkedIn, Facebook, Slack) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SkillBridge" />
+    <meta property="og:url" content="https://www.skill-bridge.me/" />
+    <meta property="og:title" content="SkillBridge — Teach what you know. Learn what you don't." />
+    <meta
+      property="og:description"
+      content="Book one-on-one sessions with verified teachers, or earn by teaching what you already know."
+    />
+    <!-- 1200x630. Below that, LinkedIn and WhatsApp drop the image entirely. -->
+    <meta property="og:image" content="https://www.skill-bridge.me/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SkillBridge — teach what you know, learn what you don't." />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter/X reads its own namespace rather than falling back to og: -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SkillBridge — Teach what you know. Learn what you don't." />
+    <meta
+      name="twitter:description"
+      content="Book one-on-one sessions with verified teachers, or earn by teaching what you already know."
+    />
+    <meta name="twitter:image" content="https://www.skill-bridge.me/og-image.png" />
+
+    <meta name="theme-color" content="#2A9D90" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <title>SkillBridge</title>
+
+    <!--
+      Organization and WebSite only.
+
+      No AggregateRating, Review, Product or Offer markup: there are no real
+      reviews behind it yet, and schema that claims ratings a site cannot show
+      is exactly what Google issues manual actions for. Add them when they
+      describe something true.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.skill-bridge.me/#organization",
+            "name": "SkillBridge",
+            "url": "https://www.skill-bridge.me/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://www.skill-bridge.me/assets/logo.png",
+              "width": 872,
+              "height": 224
+            },
+            "description": "A skill-exchange marketplace where people book one-on-one sessions with verified teachers, and earn by teaching what they know.",
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "contactType": "customer support",
+              "email": "support@skill-bridge.me",
+              "url": "https://www.skill-bridge.me/contact",
+              "availableLanguage": ["en", "ur"]
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://www.skill-bridge.me/#website",
+            "url": "https://www.skill-bridge.me/",
+            "name": "SkillBridge",
+            "publisher": { "@id": "https://www.skill-bridge.me/#organization" },
+            "inLanguage": "en"
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

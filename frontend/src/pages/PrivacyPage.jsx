@@ -1,6 +1,14 @@
 import LegalLayout from '../components/Legal/LegalLayout';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 function PrivacyPage() {
+  usePageMeta({
+    title: 'Privacy Policy',
+    description:
+      'What SkillBridge collects, why it is collected, how long it is kept, and the choices you have over your data.',
+    path: '/privacy',
+  });
+
   return (
     <LegalLayout title="Privacy Policy" lastUpdated="September 4, 2026">
       <h2>1. Information We Collect</h2>

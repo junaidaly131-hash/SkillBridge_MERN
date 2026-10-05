@@ -4,10 +4,15 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import Input from "../ui/Input";
 import Button from "../ui/AuthButton";
 import GoogleLoginButton from "../components/GoogleLoginButton";
+import { usePageMeta } from "../hooks/usePageMeta";
 import { loginUser, loginWithFacebook, clearError } from "../store/authSlice";
 import { useToast } from "../ui/Toast";
 
 function LoginPage() {
+  // Not in the sitemap - a login form has nothing to rank for. The title is set
+  // only so the browser tab and history entry aren't the generic default.
+  usePageMeta({ title: "Log In", path: "/login" });
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();

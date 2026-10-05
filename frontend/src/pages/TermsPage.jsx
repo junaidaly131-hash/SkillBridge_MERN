@@ -1,6 +1,14 @@
 import LegalLayout from '../components/Legal/LegalLayout';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 function TermsPage() {
+  usePageMeta({
+    title: 'Terms & Conditions',
+    description:
+      'The terms that govern using SkillBridge: accounts, credits, sessions, payouts and acceptable use.',
+    path: '/terms',
+  });
+
   return (
     <LegalLayout title="Terms & Conditions" lastUpdated="September 4, 2026">
       <h2>1. About SkillBridge</h2>

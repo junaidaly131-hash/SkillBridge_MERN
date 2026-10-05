@@ -1,6 +1,14 @@
 import LegalLayout from '../components/Legal/LegalLayout';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 function RefundPolicyPage() {
+  usePageMeta({
+    title: 'Refund & Cancellation Policy',
+    description:
+      'When SkillBridge credit purchases and sessions can be refunded or cancelled, and how long a review takes.',
+    path: '/refund-policy',
+  });
+
   return (
     <LegalLayout title="Refund & Cancellation Policy" lastUpdated="September 5, 2026">
       <h2>1. Credit Purchases</h2>

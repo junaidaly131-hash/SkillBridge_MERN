@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Loader2, Mail, MapPin, MessageSquare, Send } from "lucide-react";
+import { usePageMeta } from "../hooks/usePageMeta";
 import Header from "../components/LandingPage/Header";
 import Footer from "../components/LandingPage/Footer";
 import apiClient from "../api/client";
@@ -7,6 +8,13 @@ import apiClient from "../api/client";
 const MAX_MESSAGE = 4000;
 
 function ContactPage() {
+  usePageMeta({
+    title: "Contact Us",
+    description:
+      "Get in touch with the SkillBridge team. Send us a message and we'll reply by email, usually within one working day.",
+    path: "/contact",
+  });
+
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [sending, setSending] = useState(false);
   // Public page, so there's no toast provider here - feedback is inline.

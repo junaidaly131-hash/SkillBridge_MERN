@@ -4,10 +4,18 @@ import { useNavigate, Link } from "react-router-dom";
 import Input from "../ui/Input";
 import Button from "../ui/AuthButton";
 import GoogleLoginButton from "../components/GoogleLoginButton";
+import { usePageMeta } from "../hooks/usePageMeta";
 import { registerUser, loginWithFacebook, clearError } from "../store/authSlice";
 import { useToast } from "../ui/Toast";
 
 function SignUpPage() {
+  usePageMeta({
+    title: "Sign Up",
+    description:
+      "Create a free SkillBridge account. Book your first session at no cost, or start teaching what you already know.",
+    path: "/signup",
+  });
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { showSuccess, showError, showInfo } = useToast();

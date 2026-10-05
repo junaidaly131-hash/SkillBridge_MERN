@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { usePageMeta } from '../hooks/usePageMeta';
 import Header from '../components/LandingPage/Header';
 import Footer from '../components/LandingPage/Footer';
 import Hero from '../components/LandingPage/Hero';
@@ -9,6 +10,10 @@ import CTA from '../components/LandingPage/CTA';
 
 function LandingPage() {
   const location = useLocation();
+
+  // The one page that carries the site-wide defaults, so no title override -
+  // "SkillBridge | SkillBridge" helps nobody.
+  usePageMeta({ path: "/" });
 
   // A footer link from another page navigates here carrying the section it
   // wanted. ScrollRestoration puts us at the top first, so this runs after
