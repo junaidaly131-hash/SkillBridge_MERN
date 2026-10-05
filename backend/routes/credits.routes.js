@@ -28,14 +28,22 @@ router.get('/wallet', authenticateToken, async (req, res) => {
       {
         $group: {
           _id: null,
+          // Keyed on `type`, not on the sign of `amount`. Every credit arriving
+          // is a positive row, so summing positives counted a Safepay purchase
+          // as money the user had "earned" - and likewise a reversed payout and
+          // an admin bonus. Teaching is the only thing anyone earns.
           earned: {
             $sum: {
-              $cond: [{ $gt: ['$amount', 0] }, '$amount', 0],
+              $cond: [{ $eq: ['$type', 'teaching'] }, '$amount', 0],
             },
           },
+          // And the only thing credits get spent ON is learning. The other
+          // negative rows are a refund being clawed back and credits being held
+          // for a payout; neither is spending, and both have their own place in
+          // the UI (Purchase History and the Cash Out panel).
           spent: {
             $sum: {
-              $cond: [{ $lt: ['$amount', 0] }, { $abs: '$amount' }, 0],
+              $cond: [{ $eq: ['$type', 'learning'] }, { $abs: '$amount' }, 0],
             },
           },
         },
