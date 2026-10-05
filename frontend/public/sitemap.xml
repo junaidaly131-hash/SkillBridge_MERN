@@ -1,17 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Only the pages a signed-out visitor can actually reach and that are worth
-  ranking. Everything behind authentication is deliberately absent and is also
-  disallowed in robots.txt.
-
-  Every URL here uses the www host. That is the canonical domain - the apex
-  redirects to it - and a sitemap listing the non-canonical host just asks
-  Google to pick a winner itself.
-
-  Lives in public/ so it is served as a real file rather than being swallowed by
-  the SPA rewrite. Dates are the last meaningful content change, not the last
-  deploy; bumping them on every deploy teaches Google to stop trusting them.
--->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://www.skill-bridge.me/</loc>
