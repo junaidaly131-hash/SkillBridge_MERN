@@ -1,9 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { CreditWallet, CreditTransaction } from '../models/Credit.js';
-import User from '../models/User.js';
-import { getOrCreateWallet, notifyIfCrossedLowBalance, spendCredits, addEarnedCredits } from '../utils/wallet.js';
-import { CREDITS_PER_TEACHING_SESSION, CREDITS_PER_LEARNING_SESSION } from '../config/sessionCreditRates.js';
+import { CreditTransaction } from '../models/Credit.js';
+import { getOrCreateWallet } from '../utils/wallet.js';
 
 const router = express.Router();
 
@@ -97,106 +95,24 @@ router.get('/transactions', authenticateToken, async (req, res) => {
   }
 });
 
-// Process teaching credits (called when a meeting is scheduled where user is teaching)
-router.post('/earn/teaching', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { meetingId, learnerId } = req.body;
-
-    if (!learnerId) return res.status(400).json({ message: 'learnerId is required' });
-
-    const learner = await User.findById(learnerId).select('name');
-    if (!learner) return res.status(404).json({ message: 'Learner not found' });
-
-    const wallet = await getOrCreateWallet(userId);
-
-    // Teaching is the only thing that fills the cashable bucket.
-    addEarnedCredits(wallet, CREDITS_PER_TEACHING_SESSION);
-    await wallet.save();
-
-    // Record transaction
-    const transaction = await CreditTransaction.create({
-      user: userId,
-      type: 'teaching',
-      amount: CREDITS_PER_TEACHING_SESSION,
-      description: `Teaching session with ${learner.name}`,
-      meeting: meetingId || null,
-      otherUser: learnerId,
-    });
-
-    res.json({
-      success: true,
-      transaction,
-      newBalance: wallet.balance,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Process learning credits (called when user schedules to learn)
-router.post('/spend/learning', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { meetingId, teacherId } = req.body;
-
-    if (!teacherId) return res.status(400).json({ message: 'teacherId is required' });
-
-    const teacher = await User.findById(teacherId).select('name');
-    if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
-
-    const wallet = await getOrCreateWallet(userId);
-
-    // Check if user has enough credits
-    if (wallet.balance < CREDITS_PER_LEARNING_SESSION) {
-      return res.status(400).json({
-        message: 'Insufficient credits',
-        required: CREDITS_PER_LEARNING_SESSION,
-        balance: wallet.balance,
-      });
-    }
-
-    // Deduct for learning - purchased credits first, then earned.
-    const balanceBefore = wallet.balance;
-    spendCredits(wallet, CREDITS_PER_LEARNING_SESSION);
-    await wallet.save();
-    notifyIfCrossedLowBalance(userId, balanceBefore, wallet.balance);
-
-    // Record transaction
-    const transaction = await CreditTransaction.create({
-      user: userId,
-      type: 'learning',
-      amount: -CREDITS_PER_LEARNING_SESSION,
-      description: `Learning session with ${teacher.name}`,
-      meeting: meetingId || null,
-      otherUser: teacherId,
-    });
-
-    res.json({
-      success: true,
-      transaction,
-      newBalance: wallet.balance,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Check if user can afford a learning session
-router.get('/check-balance', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const wallet = await getOrCreateWallet(userId);
-
-    res.json({
-      success: true,
-      balance: wallet.balance,
-      canAffordSession: wallet.balance >= CREDITS_PER_LEARNING_SESSION,
-      sessionCost: CREDITS_PER_LEARNING_SESSION,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+// REMOVED: POST /earn/teaching, POST /spend/learning, GET /check-balance
+//
+// /earn/teaching let ANY signed-in caller add 25 cashable credits to their own
+// wallet by posting any learnerId. It checked that the learner existed and
+// nothing else: not that a meeting existed, not that it had happened, not that
+// the caller taught it, and not that it had already been paid out. Called in a
+// loop it minted unlimited credits, and earned credits are the cashable kind,
+// so the exit was a real bank transfer.
+//
+// /spend/learning was the same shape in reverse and wrote fabricated 'learning'
+// rows. Both predate utils/meetingCompletion.js, which is now the only thing
+// that moves credits for a session: it runs from a scheduled sweep, keyed on a
+// meeting that actually reached its end time, with a creditsProcessed flag so
+// it settles once. Nothing in the app had called either route for some time -
+// the frontend thunks were dead too - but the routes stayed mounted and
+// reachable.
+//
+// If a credit movement is ever needed outside session completion, it belongs in
+// utils/wallet.js behind a real check, not as an endpoint that trusts its body.
 
 export default router;

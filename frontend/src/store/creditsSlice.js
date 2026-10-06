@@ -25,41 +25,10 @@ export const fetchTransactions = createAsyncThunk(
   }
 );
 
-export const checkBalance = createAsyncThunk(
-  'credits/checkBalance',
-  async (_, { rejectWithValue }) => {
-    try {
-      const res = await apiClient.get('/credits/check-balance');
-      return res.data;
-    } catch (err) {
-      return rejectWithValue(err.response?.data?.message || 'Failed to check balance');
-    }
-  }
-);
-
-export const earnTeachingCredits = createAsyncThunk(
-  'credits/earnTeaching',
-  async ({ meetingId, learnerId }, { rejectWithValue }) => {
-    try {
-      const res = await apiClient.post('/credits/earn/teaching', { meetingId, learnerId });
-      return res.data;
-    } catch (err) {
-      return rejectWithValue(err.response?.data?.message || 'Failed to earn credits');
-    }
-  }
-);
-
-export const spendLearningCredits = createAsyncThunk(
-  'credits/spendLearning',
-  async ({ meetingId, teacherId }, { rejectWithValue }) => {
-    try {
-      const res = await apiClient.post('/credits/spend/learning', { meetingId, teacherId });
-      return res.data;
-    } catch (err) {
-      return rejectWithValue(err.response?.data?.message || 'Failed to spend credits');
-    }
-  }
-);
+// The wallet is read-only from the client. Credits move when a session
+// completes, decided entirely server-side in utils/meetingCompletion.js - there
+// is deliberately no thunk that asks the server to add or remove credits, and
+// the endpoints that used to accept such a request have been removed.
 
 const creditsSlice = createSlice({
   name: 'credits',
@@ -104,29 +73,6 @@ const creditsSlice = createSlice({
       })
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
-      })
-      // Earn teaching credits
-      .addCase(earnTeachingCredits.fulfilled, (state, action) => {
-        if (state.wallet) {
-          state.wallet.balance = action.payload.newBalance;
-        }
-        // Add transaction to the beginning
-        if (action.payload.transaction) {
-          state.transactions = [action.payload.transaction, ...state.transactions];
-        }
-      })
-      // Spend learning credits
-      .addCase(spendLearningCredits.fulfilled, (state, action) => {
-        if (state.wallet) {
-          state.wallet.balance = action.payload.newBalance;
-        }
-        // Add transaction to the beginning
-        if (action.payload.transaction) {
-          state.transactions = [action.payload.transaction, ...state.transactions];
-        }
-      })
-      .addCase(spendLearningCredits.rejected, (state, action) => {
         state.error = action.payload;
       });
   },

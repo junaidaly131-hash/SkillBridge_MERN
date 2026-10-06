@@ -57,30 +57,52 @@ export const requestPayout = async (req, res) => {
       });
     }
 
-    const wallet = await CreditWallet.findOne({ user: userId });
-    if (!wallet || wallet.earnedBalance < credits) {
+    // Hold pattern: the credits leave the wallet now, so the same ones can't be
+    // spent or requested again while the payout is pending review.
+    //
+    // Read-check-then-write would not be safe here. Two requests firing at once
+    // both read the same earnedBalance, both pass the check, and both create a
+    // payout - 100 earned credits claimed twice, settled in real money. The
+    // condition therefore lives in the query: only a wallet that still holds
+    // enough matches, so of two racing requests exactly one can win.
+    //
+    // `balance` is decremented alongside because $inc bypasses the model's
+    // pre-save hook, which is what normally keeps balance equal to its parts.
+    const wallet = await CreditWallet.findOneAndUpdate(
+      { user: userId, earnedBalance: { $gte: credits } },
+      { $inc: { earnedBalance: -credits, balance: -credits, totalSpent: credits } },
+      { new: true }
+    );
+
+    if (!wallet) {
+      const current = await CreditWallet.findOne({ user: userId }).select('earnedBalance');
       return res.status(400).json({
-        message: `Only credits earned by teaching can be cashed out. You have ${wallet?.earnedBalance || 0} earned credits, requested ${credits}.`,
+        message: `Only credits earned by teaching can be cashed out. You have ${current?.earnedBalance || 0} earned credits, requested ${credits}.`,
       });
     }
 
-    // Hold pattern: deduct immediately so the same credits can't be spent or
-    // requested again while the payout is pending review.
-    holdEarnedForPayout(wallet, credits);
-    wallet.totalSpent += credits;
-    await wallet.save();
-
-    const payoutRequest = await PayoutRequest.create({
-      teacher: userId,
-      creditsRequested: credits,
-      amountPKR: creditsToRupees(credits),
-      payoutMethod,
-      payoutDetails: {
-        accountTitle: payoutDetails.accountTitle.trim(),
-        accountNumber: payoutDetails.accountNumber.trim(),
-        bankName: payoutDetails.bankName?.trim() || undefined,
-      },
-    });
+    let payoutRequest;
+    try {
+      payoutRequest = await PayoutRequest.create({
+        teacher: userId,
+        creditsRequested: credits,
+        amountPKR: creditsToRupees(credits),
+        payoutMethod,
+        payoutDetails: {
+          accountTitle: payoutDetails.accountTitle.trim(),
+          accountNumber: payoutDetails.accountNumber.trim(),
+          bankName: payoutDetails.bankName?.trim() || undefined,
+        },
+      });
+    } catch (createError) {
+      // The credits are already out of the wallet. Without this the user simply
+      // loses them - there would be no payout record for an admin to find.
+      await CreditWallet.updateOne(
+        { user: userId },
+        { $inc: { earnedBalance: credits, balance: credits, totalSpent: -credits } }
+      );
+      throw createError;
+    }
 
     await CreditTransaction.create({
       user: userId,
