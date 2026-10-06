@@ -148,17 +148,40 @@ function AdminVerifications() {
                 <div key={u.id} className="border border-[#E5E5E5] rounded-xl p-5">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
-                      <p className="font-family-poppins font-semibold text-black">{u.name}</p>
+                      {/* Which kind of request this is, stated rather than left
+                          to be inferred. A student submits a CNIC and nothing
+                          else, so the "Teaches:" line below is simply absent for
+                          them - and an absent line reads the same as a teacher
+                          whose skills failed to load. Approving the two means
+                          different things: only a teacher goes on to appear in
+                          the public directory and take paid sessions. */}
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-family-poppins font-semibold text-black">{u.name}</p>
+                        <span
+                          className={`font-family-poppins text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            u.skillsTeaching?.length > 0
+                              ? "bg-teal/10 text-teal"
+                              : "bg-gray-200 text-gray"
+                          }`}
+                        >
+                          {u.skillsTeaching?.length > 0 ? "Teacher" : "Student"}
+                        </span>
+                      </div>
                       <p className="font-family-poppins text-xs text-gray mb-1">{u.email}</p>
                       <p className="font-family-poppins text-xs text-gray">
                         Submitted {formatDate(u.verificationSubmittedAt)}
                       </p>
-                      {u.skillsTeaching?.length > 0 && (
+                      {u.skillsTeaching?.length > 0 ? (
                         <p className="font-family-poppins text-xs text-gray mt-1">
                           Teaches:{" "}
                           {u.skillsTeaching
                             .map((s) => (typeof s === "string" ? s : s.name))
                             .join(", ")}
+                        </p>
+                      ) : (
+                        <p className="font-family-poppins text-xs text-gray mt-1">
+                          No teaching skills listed, so approving this verifies their identity only
+                          and will not list them as a teacher.
                         </p>
                       )}
                       <div className="flex flex-wrap gap-2 mt-3">
