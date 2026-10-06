@@ -9,7 +9,9 @@
 
 User-agent: *
 
-# Signed-in application
+# Signed-in application. /profile is the signed-in view of an account; the
+# public, read-only version of a teacher's profile lives at /teachers/:id and is
+# meant to be crawled.
 Disallow: /dashboard
 Disallow: /profile
 Disallow: /chat

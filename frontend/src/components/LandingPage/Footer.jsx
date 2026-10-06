@@ -65,6 +65,16 @@ function Footer() {
           <div>
             <h3 className="font-josefin font-semibold text-lg mb-4">Legal</h3>
             <ul className="space-y-2 font-poppins text-sm">
+              {/* Sits on every public page, which is what gives the teacher
+                  directory a crawlable route in from anywhere on the site. */}
+              <li>
+                <Link
+                  to="/teachers"
+                  className="text-black cursor-pointer hover:text-teal transition-colors"
+                >
+                  Find a Teacher
+                </Link>
+              </li>
               <li>
                 <Link
                   to="/contact"

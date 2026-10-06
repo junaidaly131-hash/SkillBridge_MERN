@@ -9,6 +9,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { connectDB } from './config/database.js';
 import { describeSafepayConfig } from './config/safepay.js';
+import publicRoutes from './routes/public.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import chatRoutes from './routes/chat.routes.js';
@@ -100,6 +101,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // API Routes
+// No authenticateToken anywhere inside - see routes/public.routes.js for what
+// that means for the shape of its responses.
+app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chat', chatRoutes);

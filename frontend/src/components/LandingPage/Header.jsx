@@ -36,6 +36,14 @@ function Header() {
             >
               How It Works
             </button>
+            {/* A real link, not a scroll button like its neighbours - this one
+                goes to another page, and a crawler has to be able to follow it. */}
+            <Link
+              to="/teachers"
+              className="text-black font-poppins hover:text-teal transition-colors cursor-pointer"
+            >
+              Find a Teacher
+            </Link>
           </nav>
 
           {/* Buttons */}

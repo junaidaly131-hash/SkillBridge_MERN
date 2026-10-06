@@ -29,6 +29,8 @@ import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import RefundPolicyPage from "./pages/RefundPolicyPage";
 import ContactPage from "./pages/ContactPage";
+import TeachersPage from "./pages/TeachersPage";
+import TeacherProfilePage from "./pages/TeacherProfilePage";
 import SupportPage from "./pages/SupportPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
@@ -89,6 +91,19 @@ const router = createBrowserRouter([
     {
       path: "/contact",
       element: <ContactPage />,
+    },
+    // Public and signed-out on purpose: these are the only pages that show what
+    // is actually on the platform, so they are what a visitor judges it by and
+    // the only inventory a search engine can reach. No PublicRoute wrapper -
+    // that redirects signed-in users away, and a logged-in user following a
+    // shared profile link should still land on the profile.
+    {
+      path: "/teachers",
+      element: <TeachersPage />,
+    },
+    {
+      path: "/teachers/:id",
+      element: <TeacherProfilePage />,
     },
     {
       element: (
