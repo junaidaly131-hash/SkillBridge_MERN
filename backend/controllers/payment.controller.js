@@ -107,12 +107,12 @@ async function finalizeCompletedTransaction(transaction, rawPayload, providerTra
   await wallet.save();
 }
 
-async function finalizeFailedTransaction(transaction, rawPayload) {
-  if (transaction.status !== 'pending') return; // don't clobber completed/refunded
-  transaction.status = 'failed';
-  transaction.rawPayload = rawPayload;
-  await transaction.save();
-}
+// No finalizeFailedTransaction here on purpose. Nothing may mark a payment
+// failed from a tracker reading any more: the only signal that looked like
+// failure (is_routed === false) turned out to be present on a settled payment
+// too. An ended tracker we cannot read as paid stays pending for a human.
+// Checkout creation failing before the buyer ever saw a page is different, and
+// that path sets 'failed' itself - nothing was charged there.
 
 // The redirect back from Safepay carries no signature, so it can't be trusted
 // on its own. The tracker in it is treated purely as a lookup key and the real
@@ -142,22 +142,18 @@ async function checkAndFinalizeTracker(transaction) {
   // brand-new unpaid tracker too (confirmed live), so it must not be used as
   // the success signal.
   //
-  // The exact marker a settled payment carries could not be confirmed: the V2
-  // reporter shows none of our historical V1 payments, so no completed tracker
-  // existed to inspect. Rather than guess and risk crediting a cancelled
-  // payment, an ended tracker with no recognised success marker is logged in
-  // full and left pending for a human to settle.
-  const MARKERS = ['transaction', 'charge', 'payment'];
+  // `charge` is. Confirmed against a real settled production payment: an ended,
+  // paid tracker carries a charge object (token ch_...), and an unpaid one does
+  // not. The other names are kept because they cost nothing and Safepay's
+  // shapes are not documented, but charge is the one actually observed.
+  const MARKERS = ['charge', 'transaction', 'payment'];
   let matchedMarker = MARKERS.find((key) => data[key]) || null;
   if (!matchedMarker && Array.isArray(data.payments) && data.payments.length > 0) {
     matchedMarker = 'payments';
   }
 
   if (matchedMarker) {
-    // Which field proved the payment is recorded, not just that one did. The
-    // marker set above was inferred rather than documented, so naming the one
-    // that actually fires lets the guesses be narrowed to the real field before
-    // this runs against live money. Field name only - no payload, no PII.
+    // Field name only - no payload, no PII.
     console.log(
       `Safepay tracker ${transaction.safepayTrackerToken} settled via marker "${matchedMarker}"`
     );
@@ -166,12 +162,16 @@ async function checkAndFinalizeTracker(transaction) {
       { via: 'reporter_tracker_status', data },
       transaction.safepayTrackerToken
     );
-  } else if (data.is_routed === false) {
-    // Ended without ever reaching a processor - nothing was charged.
-    await finalizeFailedTransaction(transaction, { via: 'reporter_tracker_status', data });
   } else {
+    // Deliberately NOT auto-failed on is_routed === false. That looked like a
+    // "never reached a processor" signal, but the real settled payment above
+    // carries is_routed: false too - so treating it as failure would have
+    // marked a paid transaction failed the moment the marker check missed.
+    // Nothing here is ever auto-failed: an unrecognised ended tracker is logged
+    // in full and left pending for a human, because wrongly failing a payment
+    // someone made is worse than a row needing a look.
     console.error(
-      `Safepay tracker ${transaction.safepayTrackerToken} ENDED with an unrecognised shape - ` +
+      `Safepay tracker ${transaction.safepayTrackerToken} ENDED with no success marker - ` +
       'left pending, settle manually and update the success check. Payload: ' +
       JSON.stringify(data)
     );
