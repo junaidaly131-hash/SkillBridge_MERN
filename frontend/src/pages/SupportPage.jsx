@@ -112,7 +112,7 @@ function SupportPage() {
             <button
               type="submit"
               disabled={!canSubmit}
-              className="flex items-center gap-2 font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send size={16} />}
               {sending ? "Sending..." : "Send request"}

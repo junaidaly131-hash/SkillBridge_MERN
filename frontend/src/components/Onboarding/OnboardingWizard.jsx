@@ -52,7 +52,7 @@ function SkillPicker({ placeholder, skills, onAdd, onRemove, busy }) {
           type="button"
           onClick={() => submit()}
           disabled={busy || !value.trim()}
-          className="px-4 py-3 h-fit bg-teal text-white rounded-lg font-family-poppins text-sm font-semibold hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+          className="px-4 py-3 h-fit bg-teal-button text-white rounded-lg font-family-poppins text-sm font-semibold hover:bg-teal-button-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus size={16} />}
           Add
@@ -298,7 +298,7 @@ function OnboardingWizard({ profile }) {
                     <span
                       className={`w-8 h-8 shrink-0 rounded-full border-2 flex items-center justify-center font-family-poppins text-xs font-semibold transition-all ${
                         isComplete
-                          ? "bg-teal border-teal text-white"
+                          ? "bg-teal-button border-teal text-white"
                           : isActive
                           ? "border-teal text-teal"
                           : "border-[#D0D0D0] text-gray"
@@ -354,7 +354,7 @@ function OnboardingWizard({ profile }) {
                   </div>
                   <div
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
-                      wantsToTeach ? "bg-teal border-teal" : "border-[#D0D0D0]"
+                      wantsToTeach ? "bg-teal-button border-teal-button" : "border-[#D0D0D0]"
                     }`}
                   >
                     {wantsToTeach && <Check className="text-white" size={14} />}
@@ -381,7 +381,7 @@ function OnboardingWizard({ profile }) {
                   </div>
                   <div
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
-                      wantsToLearn ? "bg-teal border-teal" : "border-[#D0D0D0]"
+                      wantsToLearn ? "bg-teal-button border-teal-button" : "border-[#D0D0D0]"
                     }`}
                   >
                     {wantsToLearn && <Check className="text-white" size={14} />}
@@ -468,7 +468,7 @@ function OnboardingWizard({ profile }) {
                     type="button"
                     onClick={handleAddCertification}
                     disabled={busy || !cert.name.trim()}
-                    className="px-4 py-2.5 bg-teal text-white rounded-lg font-family-poppins text-sm font-semibold hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    className="px-4 py-2.5 bg-teal-button text-white rounded-lg font-family-poppins text-sm font-semibold hover:bg-teal-button-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                   >
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus size={16} />}
                     Add
@@ -533,7 +533,7 @@ function OnboardingWizard({ profile }) {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="absolute bottom-0 right-0 w-7 h-7 bg-teal rounded-full flex items-center justify-center hover:opacity-90 transition-all"
+                      className="absolute bottom-0 right-0 w-7 h-7 bg-teal-button rounded-full flex items-center justify-center hover:bg-teal-button-hover transition-all"
                       aria-label="Upload profile photo"
                     >
                       <Camera className="text-white" size={14} />
@@ -652,7 +652,7 @@ function OnboardingWizard({ profile }) {
                   type="button"
                   onClick={() => setStepIndex(1)}
                   disabled={!wantsToTeach && !wantsToLearn}
-                  className="font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Continue
                 </button>
@@ -663,7 +663,7 @@ function OnboardingWizard({ profile }) {
                   type="button"
                   onClick={() => setStepIndex((i) => i + 1)}
                   disabled={busy}
-                  className="font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all disabled:opacity-50"
+                  className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all disabled:opacity-50"
                 >
                   Continue
                 </button>
@@ -674,7 +674,7 @@ function OnboardingWizard({ profile }) {
                   type="button"
                   onClick={saveProfileStep}
                   disabled={busy}
-                  className="font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+                  className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all disabled:opacity-50 flex items-center gap-2"
                 >
                   {busy && <Loader2 className="w-4 h-4 animate-spin" />}
                   Continue
@@ -686,7 +686,7 @@ function OnboardingWizard({ profile }) {
                   type="button"
                   onClick={finish}
                   disabled={busy}
-                  className="font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 ml-auto"
+                  className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all disabled:opacity-50 flex items-center gap-2 ml-auto"
                 >
                   {busy && <Loader2 className="w-4 h-4 animate-spin" />}
                   Go to Dashboard

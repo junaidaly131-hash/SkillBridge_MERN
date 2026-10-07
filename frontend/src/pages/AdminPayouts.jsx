@@ -172,7 +172,7 @@ function AdminPayouts() {
                         <button
                           onClick={() => handleApprove(r.id)}
                           disabled={decidingId === r.id}
-                          className="flex items-center gap-1 font-family-poppins text-sm font-semibold text-white bg-teal px-3 py-2 rounded-lg disabled:opacity-50"
+                          className="flex items-center gap-1 font-family-poppins text-sm font-semibold text-white bg-teal-button px-3 py-2 rounded-lg disabled:opacity-50"
                         >
                           <Check size={16} />
                           Approve
@@ -248,7 +248,7 @@ function AdminPayouts() {
                           setPaymentReference("");
                         }}
                         disabled={decidingId === r.id}
-                        className="font-family-poppins text-sm font-semibold text-white bg-teal px-3 py-2 rounded-lg disabled:opacity-50 shrink-0"
+                        className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-3 py-2 rounded-lg disabled:opacity-50 shrink-0"
                       >
                         Mark as Paid
                       </button>
@@ -266,7 +266,7 @@ function AdminPayouts() {
                         <button
                           onClick={() => handleMarkPaid(r.id)}
                           disabled={!paymentReference.trim() || decidingId === r.id}
-                          className="font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-lg disabled:opacity-50"
+                          className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-lg disabled:opacity-50"
                         >
                           Confirm Paid
                         </button>

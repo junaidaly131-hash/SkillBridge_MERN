@@ -126,7 +126,7 @@ function AdminReports() {
               key={tab.value}
               onClick={() => handleStatusTabChange(tab.value)}
               className={`font-family-poppins text-sm font-medium px-4 py-2 rounded-lg transition-all ${
-                status === tab.value ? "bg-teal text-white" : "bg-light-gray text-gray hover:bg-gray-200"
+                status === tab.value ? "bg-teal-button text-white" : "bg-light-gray text-gray hover:bg-gray-200"
               }`}
             >
               {tab.label}

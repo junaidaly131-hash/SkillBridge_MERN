@@ -93,7 +93,7 @@ function PayoutSection({ balance, onBalanceChange }) {
           <button
             onClick={() => setShowForm(true)}
             disabled={hasInFlightRequest}
-            className="font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Request Payout
           </button>
@@ -181,7 +181,7 @@ function PayoutSection({ balance, onBalanceChange }) {
             <button
               type="submit"
               disabled={submitting}
-              className="font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-lg disabled:opacity-50"
+              className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-lg disabled:opacity-50"
             >
               {submitting ? "Submitting..." : "Submit Request"}
             </button>

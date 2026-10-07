@@ -173,7 +173,7 @@ function AdminSessionDisputes() {
                         onClick={() => handleDecide(d.id, decisionPromptId.decision)}
                         disabled={!adminNote.trim() || decidingId === d.id}
                         className={`font-family-poppins text-sm font-semibold text-white px-4 py-2 rounded-lg disabled:opacity-50 ${
-                          decisionPromptId.decision === "upheld" ? "bg-red-600" : "bg-teal"
+                          decisionPromptId.decision === "upheld" ? "bg-red-600" : "bg-teal-button"
                         }`}
                       >
                         Confirm {decisionPromptId.decision === "upheld" ? "Uphold" : "Reject"}

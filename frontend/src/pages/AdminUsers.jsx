@@ -113,7 +113,7 @@ function AdminUsers() {
           />
           <button
             type="submit"
-            className="font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-lg"
+            className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-lg"
           >
             Search
           </button>

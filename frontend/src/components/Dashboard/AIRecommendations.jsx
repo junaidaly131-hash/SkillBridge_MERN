@@ -299,7 +299,7 @@ function AIRecommendations() {
           </p>
           <Link
             to="/profile"
-            className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all"
+            className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all"
           >
             Update your profile
           </Link>
@@ -330,7 +330,7 @@ function AIRecommendations() {
           <button
             type="button"
             onClick={() => setCtrl({ viewMode: "all", page: 1 })}
-            className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all"
+            className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all"
           >
             Browse all users
           </button>

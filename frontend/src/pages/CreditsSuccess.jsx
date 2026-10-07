@@ -125,7 +125,7 @@ function CreditsSuccess() {
             </p>
             <Link
               to="/credits"
-              className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg"
+              className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg"
             >
               Go to Credits
             </Link>
@@ -145,7 +145,7 @@ function CreditsSuccess() {
             </p>
             <Link
               to="/credits"
-              className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg"
+              className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg"
             >
               Back to Credits
             </Link>

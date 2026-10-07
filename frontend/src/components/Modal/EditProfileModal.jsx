@@ -341,7 +341,7 @@ function EditProfileModal({ isOpen, onClose, user }) {
                     onClick={() => handleLanguageToggle(lang)}
                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-family-poppins text-sm transition-all ${
                       formData.languages.includes(lang)
-                        ? "bg-teal text-white"
+                        ? "bg-teal-button text-white"
                         : "bg-gray-100 text-gray hover:bg-gray-200"
                     }`}
                   >
@@ -416,7 +416,7 @@ function EditProfileModal({ isOpen, onClose, user }) {
               {skillsTeaching.map((skill) => (
                 <span
                   key={skill._id || skill.name}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal text-white rounded-full font-family-poppins text-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-button text-white rounded-full font-family-poppins text-sm"
                 >
                   {skill.name}
                   <button
@@ -475,7 +475,7 @@ function EditProfileModal({ isOpen, onClose, user }) {
               {skillsLearning.map((skill) => (
                 <span
                   key={skill._id || skill.name}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal text-white rounded-full font-family-poppins text-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-button text-white rounded-full font-family-poppins text-sm"
                 >
                   {skill.name}
                   <button
@@ -518,7 +518,7 @@ function EditProfileModal({ isOpen, onClose, user }) {
               {certifications.map((cert) => (
                 <span
                   key={cert._id || cert.name}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal text-white rounded-full font-family-poppins text-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-button text-white rounded-full font-family-poppins text-sm"
                 >
                   {cert.name}
                   <button

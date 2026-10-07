@@ -100,7 +100,7 @@ function BuyCredits() {
                   <button
                     onClick={() => handleBuy(pkg.packId)}
                     disabled={!!buyingPackId}
-                    className="font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed min-w-[72px]"
+                    className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed min-w-[72px]"
                   >
                     {isBuying ? (
                       <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

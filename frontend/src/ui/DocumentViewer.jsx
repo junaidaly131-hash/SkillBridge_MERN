@@ -167,7 +167,7 @@ function DocumentViewer({ isOpen, onClose, url, title, fileName, mimeType = "", 
           <a
             href={src}
             download={downloadName}
-            className="inline-flex items-center gap-2 font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-lg hover:opacity-90"
+            className="inline-flex items-center gap-2 font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-lg hover:bg-teal-button-hover"
           >
             <Download size={16} />
             Download

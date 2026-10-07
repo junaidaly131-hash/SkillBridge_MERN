@@ -30,7 +30,7 @@ function Pagination({ currentPage, totalPages, onPageChange }) {
       onClick={() => onPageChange(page)}
       className={`flex items-center justify-center w-9 h-9 rounded-lg font-family-poppins text-sm transition-all ${
         currentPage === page
-          ? 'bg-teal text-white font-semibold'
+          ? 'bg-teal-button text-white font-semibold'
           : 'border border-[#D0D0D0] text-gray hover:bg-gray-50'
       }`}
       aria-label={`Page ${page}`}

@@ -117,7 +117,7 @@ function ChatList({ selectedChat, onSelectChat, onToggleMobile }) {
                     {conv.lastMessage}
                   </p>
                   {conv.unread > 0 && (
-                    <span className="w-5 h-5 bg-teal text-white text-xs rounded-full flex items-center justify-center shrink-0">
+                    <span className="w-5 h-5 bg-teal-button text-white text-xs rounded-full flex items-center justify-center shrink-0">
                       {conv.unread}
                     </span>
                   )}

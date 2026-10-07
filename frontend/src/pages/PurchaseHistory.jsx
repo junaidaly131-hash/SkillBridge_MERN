@@ -175,7 +175,7 @@ function PurchaseHistory() {
                               <button
                                 onClick={() => handleSubmitRefund(t.id)}
                                 disabled={!refundReason.trim() || submittingRefund}
-                                className="font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-lg disabled:opacity-50"
+                                className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-lg disabled:opacity-50"
                               >
                                 {submittingRefund ? "Submitting..." : "Submit"}
                               </button>

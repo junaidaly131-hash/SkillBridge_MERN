@@ -237,7 +237,7 @@ function ScheduleSessionModal({ isOpen, onClose, selectedChat }) {
                 onClick={() => setSessionRole("teaching")}
                 className={`flex-1 py-2 px-3 rounded-lg font-family-poppins text-sm transition-all ${
                   sessionRole === "teaching"
-                    ? "bg-teal text-white"
+                    ? "bg-teal-button text-white"
                     : "bg-gray-100 text-gray hover:bg-gray-200"
                 }`}
               >

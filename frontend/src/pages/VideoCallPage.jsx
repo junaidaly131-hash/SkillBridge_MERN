@@ -52,7 +52,7 @@ function VideoCallPage() {
             <p className="font-family-poppins text-white text-center">{currentMeetingError}</p>
             <button
               onClick={handleLeave}
-              className="font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-lg"
+              className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-lg"
             >
               Back to Chat
             </button>

@@ -189,7 +189,7 @@ function AdminTransactions() {
               onClick={() => setDays(range.days)}
               className={`font-family-poppins text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
                 days === range.days
-                  ? "bg-teal text-white"
+                  ? "bg-teal-button text-white"
                   : "border border-[#D0D0D0] text-gray hover:bg-gray-50"
               }`}
             >

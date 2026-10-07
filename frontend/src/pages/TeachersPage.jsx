@@ -110,7 +110,7 @@ function TeachersPage() {
               />
               <button
                 type="submit"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-md hover:opacity-90 transition-all"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-md hover:bg-teal-button-hover transition-all"
               >
                 Search
               </button>
@@ -167,7 +167,7 @@ function TeachersPage() {
               {skill && (
                 <Link
                   to="/teachers"
-                  className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all"
+                  className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all"
                 >
                   Browse all teachers
                 </Link>

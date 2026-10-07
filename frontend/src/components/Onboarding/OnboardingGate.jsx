@@ -50,7 +50,7 @@ function OnboardingGate() {
           <button
             type="button"
             onClick={() => dispatch(fetchProfile())}
-            className="font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all"
+            className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all"
           >
             Try again
           </button>

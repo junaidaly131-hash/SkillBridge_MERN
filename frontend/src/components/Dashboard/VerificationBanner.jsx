@@ -86,7 +86,7 @@ function VerificationBanner() {
 
       <Link
         to="/profile#verification"
-        className="font-family-poppins text-sm font-semibold text-white bg-teal px-5 py-2.5 rounded-lg hover:opacity-90 transition-all shrink-0 inline-flex items-center justify-center gap-2"
+        className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-5 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all shrink-0 inline-flex items-center justify-center gap-2"
       >
         <ShieldCheck size={16} />
         {variant.cta}

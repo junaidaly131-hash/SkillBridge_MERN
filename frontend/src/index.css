@@ -5,6 +5,20 @@
   --color-dark-blue: #1B2847;
   --color-medium-blue: #2B3A5C;
   --color-teal: #2A9D90;
+  /* The brand teal is a 3.32:1 contrast against white text, below the 4.5:1
+     WCAG AA needs for normal text - so a solid teal button with a white label
+     is not readable enough. These two are for exactly that case: a filled
+     surface carrying white text. Everything else - icons, borders, tints,
+     teal text on a light background - stays on --color-teal.
+
+       --color-teal-button        #227E73   4.88:1 on white
+       --color-teal-button-hover  #1C6A61   6.40:1 on white
+
+     The hover is darker rather than translucent. The old hover:opacity-90
+     blended the teal towards the white page behind it, which dropped contrast
+     to 2.91:1 - the hover state was less readable than the resting one. */
+  --color-teal-button: #227E73;
+  --color-teal-button-hover: #1C6A61;
   --color-light-teal: #EDF7F6;
   --color-red-opacity: #FF000040;
   --color-red: #FF0000;

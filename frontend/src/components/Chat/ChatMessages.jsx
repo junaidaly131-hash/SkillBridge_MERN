@@ -460,7 +460,7 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
             <div
               className={`max-w-[70%] rounded-2xl px-4 py-3 shadow-sm ${
                 msg.isOwn
-                  ? "bg-teal text-white rounded-br-sm"
+                  ? "bg-teal-button text-white rounded-br-sm"
                   : "bg-white text-black border border-[#E5E5E5] rounded-bl-sm"
               }`}
             >
@@ -506,7 +506,7 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
                     msg.meetingInvite.canJoin
                       ? msg.isOwn
                         ? "bg-white text-teal hover:bg-white/90"
-                        : "bg-teal text-white hover:opacity-90"
+                        : "bg-teal-button text-white hover:bg-teal-button-hover"
                       : `${msg.isOwn ? "bg-white/20 text-white/70" : "bg-gray-100 text-gray"} cursor-not-allowed`
                   }`}
                 >

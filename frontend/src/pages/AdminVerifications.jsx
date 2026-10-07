@@ -216,7 +216,7 @@ function AdminVerifications() {
                       <button
                         onClick={() => handleApprove(u.id)}
                         disabled={decidingUserId === u.id}
-                        className="flex items-center gap-1 font-family-poppins text-sm font-semibold text-white bg-teal px-3 py-2 rounded-lg disabled:opacity-50"
+                        className="flex items-center gap-1 font-family-poppins text-sm font-semibold text-white bg-teal-button px-3 py-2 rounded-lg disabled:opacity-50"
                       >
                         <Check size={16} />
                         Approve

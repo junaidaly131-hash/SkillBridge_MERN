@@ -53,7 +53,7 @@ function ProfileCompletionBanner() {
       </div>
       <Link
         to="/profile"
-        className="font-family-poppins text-sm font-semibold text-white bg-teal px-4 py-2 rounded-lg hover:opacity-90 transition-all shrink-0"
+        className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-4 py-2 rounded-lg hover:bg-teal-button-hover transition-all shrink-0"
       >
         Complete
       </Link>

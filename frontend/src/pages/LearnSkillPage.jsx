@@ -102,7 +102,7 @@ function LearnSkillPage() {
               </p>
               <Link
                 to="/teachers"
-                className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all"
+                className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all"
               >
                 Browse all teachers
               </Link>
@@ -179,7 +179,7 @@ function LearnSkillPage() {
                 </p>
                 <Link
                   to="/signup"
-                  className="font-family-poppins text-base font-semibold text-white bg-teal px-8 py-3 rounded-lg hover:opacity-90 transition-all inline-flex items-center gap-2"
+                  className="font-family-poppins text-base font-semibold text-white bg-teal-button px-8 py-3 rounded-lg hover:bg-teal-button-hover transition-all inline-flex items-center gap-2"
                 >
                   Get started free
                   <ArrowRight size={18} />
