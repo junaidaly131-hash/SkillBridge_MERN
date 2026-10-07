@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { fadeUp, inView, stagger } from "../../lib/motion";
 
 // Fewer than this and the section does not appear at all. Three chips is the
@@ -37,14 +37,14 @@ function PopularSkills() {
   return (
     <section className="py-20 bg-white font-family-poppins">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <m.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={inView}>
+        <Motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={inView}>
           <h2 className="text-3xl md:text-4xl font-medium text-black mb-3">Popular skills</h2>
           <p className="text-lg text-gray mb-10">
             Skills people are already teaching on SkillBridge.
           </p>
-        </m.div>
+        </Motion.div>
 
-        <m.div
+        <Motion.div
           className="flex flex-wrap justify-center gap-3"
           variants={stagger(0.05)}
           initial="hidden"
@@ -52,7 +52,7 @@ function PopularSkills() {
           viewport={inView}
         >
           {skills.slice(0, 12).map((s) => (
-            <m.div key={s.slug} variants={fadeUp} whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
+            <Motion.div key={s.slug} variants={fadeUp} whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
               <Link
                 to={`/learn/${s.slug}`}
                 className="inline-flex items-center gap-2 bg-light-bg border border-teal/20 rounded-full px-5 py-2.5 hover:border-teal transition-colors"
@@ -62,9 +62,9 @@ function PopularSkills() {
                   {s.teacherCount} {s.teacherCount === 1 ? "teacher" : "teachers"}
                 </span>
               </Link>
-            </m.div>
+            </Motion.div>
           ))}
-        </m.div>
+        </Motion.div>
       </div>
     </section>
   );

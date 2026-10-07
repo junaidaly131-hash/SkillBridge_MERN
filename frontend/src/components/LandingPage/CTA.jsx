@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import * as m from 'motion/react-m';
+import * as Motion from 'motion/react-m';
 import Button from '../../ui/Button.jsx';
 import { ArrowRight } from 'lucide-react';
 import { fadeUp, inView } from '../../lib/motion';
@@ -8,7 +8,7 @@ function CTA() {
   return (
     <section className="py-20 bg-white font-family-poppins">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <m.div
+        <Motion.div
           className="bg-gradient-blue rounded-2xl px-8 py-16 flex flex-col items-center text-center"
           variants={fadeUp}
           initial="hidden"
@@ -30,7 +30,7 @@ function CTA() {
               <ArrowRight className="w-5 h-5" />
             </Button>
           </Link>
-        </m.div>
+        </Motion.div>
       </div>
     </section>
   );
