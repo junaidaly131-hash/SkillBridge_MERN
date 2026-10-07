@@ -31,6 +31,7 @@ import RefundPolicyPage from "./pages/RefundPolicyPage";
 import ContactPage from "./pages/ContactPage";
 import TeachersPage from "./pages/TeachersPage";
 import TeacherProfilePage from "./pages/TeacherProfilePage";
+import LearnSkillPage from "./pages/LearnSkillPage";
 import SupportPage from "./pages/SupportPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
@@ -104,6 +105,13 @@ const router = createBrowserRouter([
     {
       path: "/teachers/:id",
       element: <TeacherProfilePage />,
+    },
+    // One page per skill someone teaches. The server decides which slugs exist,
+    // so this route is open and a skill with no teachers renders its own empty
+    // state rather than being listed anywhere.
+    {
+      path: "/learn/:slug",
+      element: <LearnSkillPage />,
     },
     {
       element: (

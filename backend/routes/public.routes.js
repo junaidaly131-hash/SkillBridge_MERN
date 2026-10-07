@@ -29,6 +29,44 @@ const PUBLICLY_LISTABLE = {
 // sessions with named counterparties.
 const PUBLIC_FIELDS = 'name avatar bio location languages skillsTeaching certifications stats createdAt';
 
+// "Graphic Design" -> "graphic-design". Used both ways: to build the URL of a
+// skill page and to find the skill again from one.
+export const toSkillSlug = (name) =>
+  String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/**
+ * Distinct skills that at least one publicly visible teacher actually teaches.
+ *
+ * Driven by real teachers rather than a hand-kept list, because a skill page
+ * with nobody on it is worse than no page: Google files those under "crawled,
+ * currently not indexed" and they drag on the rest of the site. So the set of
+ * skill pages grows as teachers get verified, with no code change.
+ *
+ * Skills are grouped case-insensitively - "Python" and "python" are one skill -
+ * and the most common spelling wins as the display name.
+ */
+async function listPublicSkills() {
+  const rows = await User.aggregate([
+    { $match: PUBLICLY_LISTABLE },
+    { $unwind: '$skillsTeaching' },
+    {
+      $group: {
+        _id: { $toLower: '$skillsTeaching.name' },
+        names: { $push: '$skillsTeaching.name' },
+        teacherCount: { $sum: 1 },
+      },
+    },
+    { $sort: { teacherCount: -1, _id: 1 } },
+  ]);
+
+  return rows.map((r) => {
+    const tally = new Map();
+    for (const n of r.names) tally.set(n, (tally.get(n) || 0) + 1);
+    const name = [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    return { slug: toSkillSlug(name), name, teacherCount: r.teacherCount };
+  });
+}
+
 function toPublicTeacher(user) {
   return {
     id: user._id.toString(),
@@ -114,6 +152,47 @@ router.get('/teachers/:id', async (req, res) => {
     }
     console.error('Public teacher profile failed:', error.message);
     res.status(500).json({ message: 'Could not load this profile right now.' });
+  }
+});
+
+// GET /api/public/skills - every skill that has someone to teach it.
+// Also what the sitemap is built from, so it never lists an empty page.
+router.get('/skills', async (req, res) => {
+  try {
+    res.json({ skills: await listPublicSkills() });
+  } catch (error) {
+    console.error('Public skill list failed:', error.message);
+    res.status(500).json({ message: 'Could not load skills right now.' });
+  }
+});
+
+// GET /api/public/skills/:slug - one skill page's worth of data.
+router.get('/skills/:slug', async (req, res) => {
+  try {
+    const slug = toSkillSlug(req.params.slug);
+    const skill = (await listPublicSkills()).find((s) => s.slug === slug);
+
+    // A skill nobody teaches has no page. 404 rather than an empty shell, so
+    // Google is never offered a page with nothing on it.
+    if (!skill) {
+      return res.status(404).json({ message: 'No teachers for this skill yet.' });
+    }
+
+    // Matched on the exact name, anchored and escaped, so "React" cannot also
+    // pull in "React Native".
+    const escaped = skill.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const teachers = await User.find({
+      ...PUBLICLY_LISTABLE,
+      'skillsTeaching.name': new RegExp(`^${escaped}$`, 'i'),
+    })
+      .select(PUBLIC_FIELDS)
+      .sort({ 'stats.avgRating': -1, 'stats.sessionsTaught': -1 })
+      .limit(MAX_PAGE_SIZE);
+
+    res.json({ skill, teachers: teachers.map(toPublicTeacher) });
+  } catch (error) {
+    console.error('Public skill page failed:', error.message);
+    res.status(500).json({ message: 'Could not load this skill right now.' });
   }
 });
 

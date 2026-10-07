@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { BadgeCheck, Loader2, MapPin, Search, Star } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import Header from "../components/LandingPage/Header";
 import Footer from "../components/LandingPage/Footer";
+import TeacherCard from "../components/Teachers/TeacherCard";
 import apiClient from "../api/client";
 import { usePageMeta } from "../hooks/usePageMeta";
 
@@ -18,6 +19,9 @@ function TeachersPage() {
   const [data, setData] = useState({ teachers: [], totalPages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Links out to the per-skill pages. This is the only route a crawler has to
+  // them, so it is a real list of <Link>s rather than a filter control.
+  const [skills, setSkills] = useState([]);
 
   usePageMeta({
     title: skill ? `${skill} teachers` : "Find a teacher",
@@ -51,6 +55,23 @@ function TeachersPage() {
       cancelled = true;
     };
   }, [skill, page]);
+
+  // Independent of the teacher list: the skill links should be there whether or
+  // not the current search matched anything.
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .get("/public/skills")
+      .then((res) => {
+        if (!cancelled) setSkills(res.data.skills || []);
+      })
+      .catch(() => {
+        if (!cancelled) setSkills([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -92,6 +113,23 @@ function TeachersPage() {
             </div>
           </form>
 
+          {skills.length > 0 && (
+            <div className="max-w-3xl mx-auto mb-10 text-center">
+              <p className="font-family-poppins text-sm text-gray mb-3">Browse by skill</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {skills.map((s) => (
+                  <Link
+                    key={s.slug}
+                    to={`/learn/${s.slug}`}
+                    className="font-family-poppins text-sm bg-white border border-[#E5E5E5] text-black px-3.5 py-1.5 rounded-full hover:border-teal hover:text-teal transition-colors"
+                  >
+                    {s.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex justify-center py-16">
               <Loader2 className="w-6 h-6 animate-spin text-teal" />
@@ -125,68 +163,7 @@ function TeachersPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {data.teachers.map((t) => (
-                  <Link
-                    key={t.id}
-                    to={`/teachers/${t.id}`}
-                    className="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-start gap-3 mb-3">
-                      {t.avatar ? (
-                        <img
-                          src={t.avatar}
-                          alt=""
-                          className="w-12 h-12 rounded-full object-cover shrink-0"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-light-teal flex items-center justify-center shrink-0 font-family-poppins font-semibold text-teal">
-                          {t.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-family-poppins font-semibold text-black truncate flex items-center gap-1">
-                          {t.name}
-                          <BadgeCheck className="text-teal shrink-0" size={15} />
-                        </p>
-                        {t.location && (
-                          <p className="font-family-poppins text-xs text-gray flex items-center gap-1 truncate">
-                            <MapPin size={11} /> {t.location}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {t.bio && (
-                      <p className="font-family-poppins text-sm text-gray line-clamp-2 mb-3">
-                        {t.bio}
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      {t.skills.slice(0, 3).map((s) => (
-                        <span
-                          key={s.name}
-                          className="font-family-poppins text-xs bg-light-teal text-teal px-2 py-1 rounded-md"
-                        >
-                          {s.name}
-                        </span>
-                      ))}
-                      {t.skills.length > 3 && (
-                        <span className="font-family-poppins text-xs text-gray px-1 py-1">
-                          +{t.skills.length - 3}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-4 font-family-poppins text-xs text-gray">
-                      <span className="flex items-center gap-1">
-                        <Star className="text-yellow-500 fill-yellow-500" size={13} />
-                        {t.stats.avgRating > 0 ? t.stats.avgRating.toFixed(1) : "New"}
-                      </span>
-                      <span>
-                        {t.stats.sessionsTaught} session{t.stats.sessionsTaught === 1 ? "" : "s"} taught
-                      </span>
-                    </div>
-                  </Link>
+                  <TeacherCard key={t.id} teacher={t} />
                 ))}
               </div>
 
