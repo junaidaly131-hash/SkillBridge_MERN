@@ -109,7 +109,10 @@ function TwoFactorPage() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-6">
             {/* Code Input Boxes */}
-            <div className="flex gap-3">
+            {/* Six boxes at w-14 with gap-3 come to 396px, which does not fit
+                the 343px a 375px screen leaves after the container padding -
+                the last box was cut off. They shrink below sm instead. */}
+            <div className="flex gap-1.5 sm:gap-3">
               {code.map((digit, index) => (
                 <input
                   key={index}
@@ -120,7 +123,7 @@ function TwoFactorPage() {
                   value={digit}
                   onChange={(e) => handleChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
-                  className="w-14 h-16 text-center text-2xl font-semibold border border-[#D0D0D0] rounded-lg outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-all"
+                  className="w-10 sm:w-14 h-14 sm:h-16 min-w-0 text-center text-xl sm:text-2xl font-semibold border border-[#D0D0D0] rounded-lg outline-none focus:border-teal focus:ring-1 focus:ring-teal transition-all"
                 />
               ))}
             </div>
