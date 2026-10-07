@@ -212,13 +212,16 @@ function AIRecommendations() {
             <button
               key={key}
               onClick={() => setDirection(key)}
-              className={`flex items-center gap-2 px-4 py-2.5 font-family-poppins text-sm font-medium border-b-2 -mb-px transition-all ${
+              // whitespace-nowrap so "Teachers for You" cannot break across
+              // two lines, and tighter padding and type below sm so both tabs
+              // still fit a 375px screen once they refuse to wrap.
+              className={`flex items-center gap-1.5 sm:gap-2 whitespace-nowrap px-2.5 sm:px-4 py-2.5 font-family-poppins text-xs sm:text-sm font-medium border-b-2 -mb-px transition-all ${
                 isActive
                   ? "border-teal text-teal"
                   : "border-transparent text-gray hover:text-black"
               }`}
             >
-              <Icon size={16} />
+              <Icon size={16} className="shrink-0" />
               {cfg.tabLabel}
             </button>
           );
@@ -273,8 +276,11 @@ function AIRecommendations() {
       </div>
 
       {isRecommendedView && !showNoSkillsState && (
-        <div className="flex items-center gap-2 mb-6 px-2 py-3 border border-teal bg-light-teal rounded-full">
-          <span className="flex items-center gap-1.5 px-3 py-1.5">
+        // rounded-2xl, not rounded-full: at 375px the descriptor wraps to a
+        // second line, and a pill with fully round ends looks like a rendering
+        // fault once it wraps. flex-wrap makes the wrap deliberate.
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-6 px-3 py-2.5 border border-teal bg-light-teal rounded-2xl">
+          <span className="flex items-center gap-1.5">
             <Brain className="text-teal" size={14} />
             <span className="font-family-poppins text-sm font-medium text-black">
               AI Match Score
@@ -390,6 +396,7 @@ function AIRecommendations() {
 
               const sessionsLearned =
                 matchData?.stats?.sessionsLearned ?? match.sessions_learned ?? 0;
+              const sessionsTaught = matchData?.stats?.sessionsTaught || 0;
 
               return (
                 <Motion.div
@@ -448,8 +455,8 @@ function AIRecommendations() {
                           <Monitor className="text-gray" size={14} />
                           <span className="font-family-poppins text-gray">
                             {direction === "teach"
-                              ? `${sessionsLearned} Sessions Learned`
-                              : `${matchData?.stats?.sessionsTaught || 0} Sessions Taught`}
+                              ? `${sessionsLearned} ${sessionsLearned === 1 ? "Session" : "Sessions"} Learned`
+                              : `${sessionsTaught} ${sessionsTaught === 1 ? "Session" : "Sessions"} Taught`}
                           </span>
                         </span>
 
