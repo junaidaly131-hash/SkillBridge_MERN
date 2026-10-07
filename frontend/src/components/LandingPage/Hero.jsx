@@ -57,19 +57,29 @@ function Hero() {
           animate={{ y: [0, -10, 0] }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
         >
-          <img
-            src="/assets/heroimg.png"
-            alt="Illustration of a person studying at a desk"
-            /* The file's real intrinsic size. Without it the browser cannot
-               reserve the box before the image decodes, so everything beside
-               and below it jumps when it arrives - the only layout shift
-               Lighthouse finds on this page, in this build and the one before
-               it. fetchPriority marks it as the LCP candidate it already is. */
-            width="2992"
-            height="1996"
-            fetchPriority="high"
-            className="w-full max-w-lg h-auto"
-          />
+          {/* The PNG is 238 KB at 2992x1996 and is displayed at 512 CSS px.
+              It is also the largest contentful paint, so its weight is the
+              page's LCP almost on its own. WebP at the size it is actually
+              shown is 50 KB - the same picture, 79% less of it - with the PNG
+              left as the fallback for anything that cannot read WebP.
+
+              Dimensions stay on the <img> so the box is reserved before any of
+              them decode. */}
+          <picture>
+            <source
+              type="image/webp"
+              srcSet="/assets/heroimg-sm.webp 512w, /assets/heroimg.webp 1024w"
+              sizes="(max-width: 1023px) 100vw, 512px"
+            />
+            <img
+              src="/assets/heroimg.png"
+              alt="Illustration of a person studying at a desk"
+              width="2992"
+              height="1996"
+              fetchPriority="high"
+              className="w-full max-w-lg h-auto"
+            />
+          </picture>
         </m.div>
       </div>
     </section>
