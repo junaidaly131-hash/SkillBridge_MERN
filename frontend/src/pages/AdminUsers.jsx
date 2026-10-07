@@ -138,7 +138,7 @@ function AdminUsers() {
         {!loading && !error && users.length > 0 && (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full min-w-[28rem] text-left">
                 <thead>
                   <tr className="border-b border-[#E5E5E5]">
                     <th className="font-family-poppins text-xs text-gray font-medium pb-3">User</th>

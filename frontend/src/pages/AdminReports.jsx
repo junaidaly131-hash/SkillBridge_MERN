@@ -153,7 +153,7 @@ function AdminReports() {
         {!loading && !error && reports.length > 0 && (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full min-w-[40rem] text-left">
                 <thead>
                   <tr className="border-b border-[#E5E5E5]">
                     <th className="font-family-poppins text-xs text-gray font-medium pb-3">Reported User</th>

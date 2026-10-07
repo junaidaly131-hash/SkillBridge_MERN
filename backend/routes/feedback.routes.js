@@ -125,7 +125,13 @@ router.get('/pending', authenticateToken, async (req, res) => {
           meetingId: m._id,
           person: other?.name || 'Unknown',
           avatar: other?.avatar || null,
-          skill: m.title,
+          // The meeting's own skill, not its title. A title reads
+          // "Teaching - React with JUNAID ALI", so sending it as the skill put
+          // the other person's name in twice - once here and once inside the
+          // title - and made the session picker too long to fit a phone.
+          // Older meetings were booked without a skill, so the title is the
+          // fallback rather than an empty label.
+          skill: m.skill || m.title,
           date: m.startsAt.toISOString().split('T')[0],
           otherUserId: other?._id || null,
         };
