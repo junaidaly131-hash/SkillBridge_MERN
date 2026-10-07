@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { ArrowRight } from "lucide-react";
 import TeacherCard from "../Teachers/TeacherCard";
 import { fadeUp, inView, stagger } from "../../lib/motion";
@@ -37,7 +37,7 @@ function FeaturedTeachers() {
   return (
     <section className="py-20 bg-light-bg font-family-poppins">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <m.div
+        <Motion.div
           className="text-center mb-10"
           variants={fadeUp}
           initial="hidden"
@@ -50,9 +50,9 @@ function FeaturedTeachers() {
           <p className="text-lg text-gray">
             Every one of them has had their identity and credentials checked.
           </p>
-        </m.div>
+        </Motion.div>
 
-        <m.div
+        <Motion.div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10"
           variants={stagger()}
           initial="hidden"
@@ -60,14 +60,14 @@ function FeaturedTeachers() {
           viewport={inView}
         >
           {teachers.slice(0, SHOWN).map((t) => (
-            <m.div key={t.id} variants={fadeUp}>
+            <Motion.div key={t.id} variants={fadeUp}>
               {/* The same card the directory uses, so the two can never drift
                   into looking like different products. Only fields the public
                   whitelist already exposes. */}
               <TeacherCard teacher={t} />
-            </m.div>
+            </Motion.div>
           ))}
-        </m.div>
+        </Motion.div>
 
         <div className="text-center">
           <Link
