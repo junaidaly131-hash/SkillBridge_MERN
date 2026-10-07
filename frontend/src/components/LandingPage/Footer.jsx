@@ -17,7 +17,11 @@ function Footer() {
   return (
     <footer className="text-black font-family-poppins">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex justify-between gap-8">
+        {/* A grid, not a flex row. The children already carry col-span
+            classes, which do nothing on a flex container - so at 360px the
+            three columns simply did not fit and the last one pushed the page
+            into horizontal scroll. They stack on a phone now. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           {/* Logo and Description */}
           <div className="col-span-1 md:col-span-2">
             <img
