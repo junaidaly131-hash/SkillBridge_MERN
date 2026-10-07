@@ -5,7 +5,7 @@ import { Sparkles, Search, Star, Monitor, MapPin, Clock, Brain, Loader2, AlertCi
 import Button from "../../ui/Button";
 import Pagination from "../../ui/Pagination";
 import { AnimatePresence } from "motion/react";
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { fadeUp, stagger } from "../../lib/motion";
 import { createConversation } from "../../store/chatSlice";
 import { fetchRecommendations } from "../../store/recommendationsSlice";
@@ -364,7 +364,7 @@ function AIRecommendations() {
               already in memory, so nothing refetches and the list does not
               jump. */}
           <AnimatePresence mode="wait" initial={false}>
-          <m.div
+          <Motion.div
             key={`${direction}-${ctrl.page}`}
             className="space-y-4"
             variants={stagger(0.06)}
@@ -392,7 +392,7 @@ function AIRecommendations() {
                 matchData?.stats?.sessionsLearned ?? match.sessions_learned ?? 0;
 
               return (
-                <m.div
+                <Motion.div
                   key={match.teacher_id}
                   variants={fadeUp}
                   className="border border-[#E5E5E5] rounded-xl p-5"
@@ -515,10 +515,10 @@ function AIRecommendations() {
                       <span className="hidden sm:inline">Schedule</span>
                     </button>
                   </div>
-                </m.div>
+                </Motion.div>
               );
             })}
-          </m.div>
+          </Motion.div>
           </AnimatePresence>
 
           {totalPages > 1 && (

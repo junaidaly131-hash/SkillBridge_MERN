@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import Button from "../../ui/Button";
 
 function Hero() {
@@ -52,7 +52,7 @@ function Hero() {
         {/* The only animated part of the hero: it drifts slowly rather than
             entering, so there is no moment where the screen looks unfinished.
             Transform only - measured and confirmed not to affect CLS. */}
-        <m.div
+        <Motion.div
           className="flex justify-center lg:justify-end"
           animate={{ y: [0, -10, 0] }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
@@ -80,7 +80,7 @@ function Hero() {
               className="w-full max-w-lg h-auto"
             />
           </picture>
-        </m.div>
+        </Motion.div>
       </div>
     </section>
   );

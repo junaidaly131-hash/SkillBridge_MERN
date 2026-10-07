@@ -1,4 +1,4 @@
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { inView, scaleIn, stagger } from "../../lib/motion";
 
 function Features() {
@@ -46,7 +46,7 @@ function Features() {
     <section className="py-20 bg-white font-family-poppins">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <m.div
+        <Motion.div
           className="text-center mb-12"
           variants={scaleIn}
           initial="hidden"
@@ -59,10 +59,10 @@ function Features() {
           <p className="text-lg  font-medium text-black max-w-2xl mx-auto">
             A complete platform designed to make skill exchange seamless, secure, and rewarding.
           </p>
-        </m.div>
+        </Motion.div>
 
         {/* Feature Cards - stagger in, then lift on hover. */}
-        <m.div
+        <Motion.div
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
           variants={stagger()}
           initial="hidden"
@@ -70,7 +70,7 @@ function Features() {
           viewport={inView}
         >
           {features.map((feature, index) => (
-            <m.div
+            <Motion.div
               key={index}
               variants={scaleIn}
               whileHover={{ y: -4 }}
@@ -86,9 +86,9 @@ function Features() {
                 {feature.title}
               </h3>
               <p className="text-sm text-gray leading-relaxed">{feature.body}</p>
-            </m.div>
+            </Motion.div>
           ))}
-        </m.div>
+        </Motion.div>
       </div>
     </section>
   );
