@@ -1,4 +1,4 @@
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { MessageSquare, Sparkles } from "lucide-react";
 import { EASE, fadeUp, inView, stagger } from "../../lib/motion";
 
@@ -24,7 +24,7 @@ function AIMatching() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Explanation */}
-          <m.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={inView}>
+          <Motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={inView}>
             <h2 className="text-3xl md:text-4xl font-medium text-black mb-4">
               Matching that works both ways
             </h2>
@@ -36,7 +36,7 @@ function AIMatching() {
               It runs in both directions. Students see teachers for the skills they are after, and
               teachers see students who are looking for exactly what they teach.
             </p>
-          </m.div>
+          </Motion.div>
 
           {/* The cards are capped rather than filling the column. Stretched to
               full width they left a wide empty gap between the skill and the
@@ -51,7 +51,7 @@ function AIMatching() {
               </span>
             </div>
 
-            <m.div
+            <Motion.div
               className="flex flex-col gap-3"
               variants={stagger(0.1)}
               initial="hidden"
@@ -59,7 +59,7 @@ function AIMatching() {
               viewport={inView}
             >
               {EXAMPLE_MATCHES.map((item, i) => (
-                <m.div
+                <Motion.div
                   key={item.skill}
                   variants={fadeUp}
                   whileHover={{ y: -3 }}
@@ -99,7 +99,7 @@ function AIMatching() {
                       enhancement; the fill is always correct. */}
                   <div className="flex items-center gap-3">
                     <div className="flex-1 h-1.5 rounded-full bg-light-teal overflow-hidden">
-                      <m.div
+                      <Motion.div
                         className="h-full bg-teal rounded-full"
                         style={{ width: `${item.match}%` }}
                         initial={{ opacity: 0 }}
@@ -112,9 +112,9 @@ function AIMatching() {
                       {item.match}% match
                     </span>
                   </div>
-                </m.div>
+                </Motion.div>
               ))}
-            </m.div>
+            </Motion.div>
           </div>
         </div>
       </div>

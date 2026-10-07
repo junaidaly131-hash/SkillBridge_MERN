@@ -1,4 +1,4 @@
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { EASE, fadeUp, inView, stagger } from "../../lib/motion";
 
 function HowItWorks() {
@@ -40,7 +40,7 @@ function HowItWorks() {
     <section className="py-20 bg-light-bg font-family-poppins">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center">
         {/* Header */}
-        <m.div
+        <Motion.div
           className="text-center mb-16"
           variants={fadeUp}
           initial="hidden"
@@ -53,10 +53,10 @@ function HowItWorks() {
           <p className="text-lg font-medium text-black max-w-xl mx-auto">
             Four simple steps to start your skill exchange journey.
           </p>
-        </m.div>
+        </Motion.div>
 
         {/* Timeline */}
-        <m.div
+        <Motion.div
           className="max-w-2xl"
           variants={stagger(0.12)}
           initial="hidden"
@@ -64,7 +64,7 @@ function HowItWorks() {
           viewport={inView}
         >
           {steps.map((step, index) => (
-            <m.div key={index} className="flex gap-6" variants={fadeUp}>
+            <Motion.div key={index} className="flex gap-6" variants={fadeUp}>
               {/* Left side - Icon with vertical line */}
               <div className="flex flex-col items-center">
                 {/* Icon Circle */}
@@ -75,7 +75,7 @@ function HowItWorks() {
                     scaleY, not height: a height animation would re-run layout
                     for the whole column beside it on every frame. */}
                 {index < steps.length - 1 && (
-                  <m.div
+                  <Motion.div
                     className="w-0.5 flex-1 bg-dark-blue origin-top"
                     initial={{ scaleY: 0 }}
                     whileInView={{ scaleY: 1 }}
@@ -94,9 +94,9 @@ function HowItWorks() {
                   {step.description}
                 </p>
               </div>
-            </m.div>
+            </Motion.div>
           ))}
-        </m.div>
+        </Motion.div>
       </div>
     </section>
   );
