@@ -2,17 +2,24 @@ import * as m from "motion/react-m";
 import { inView, scaleIn, stagger } from "../../lib/motion";
 
 function Features() {
+  // One line per card, each checkable in the app: the recommendation service
+  // runs both directions, Terms section 4 says credits do not expire, the
+  // verification queue is reviewed before a teacher can take a session, and
+  // meetings.routes.js refuses a booking that overlaps an existing one.
   const features = [
     {
       title: "AI-Powered Matching",
+      body: "Students see teachers for the skills they want, and teachers see students looking for what they teach.",
       icon: "/assets/features/1.svg",
     },
     {
       title: "Credit-Based System",
+      body: "Buy credits once and spend them with any teacher. They do not expire.",
       icon: "/assets/features/2.svg",
     },
     {
       title: "Secure & Verified",
+      body: "Teachers submit identity documents and credentials, reviewed by our team before they can take a session.",
       icon: "/assets/features/3.svg",
     },
     {
@@ -20,14 +27,17 @@ function Features() {
       // provider are in Pakistan, and the rest of the site says so - a claim
       // the product doesn't meet doesn't belong on the front page.
       title: "Learners Across Pakistan",
+      body: "Find people across Pakistan teaching the skill you want, in the languages you speak.",
       icon: "/assets/features/4.svg",
     },
     {
       title: "Smart Scheduling",
+      body: "Agree a time in chat and book it. Overlapping sessions are refused automatically.",
       icon: "/assets/features/5.svg",
     },
     {
       title: "Integrated Chat",
+      body: "Message a teacher before you book, and keep the whole conversation in one place.",
       icon: "/assets/features/6.svg",
     },
   ];
@@ -65,16 +75,17 @@ function Features() {
               variants={scaleIn}
               whileHover={{ y: -4 }}
               transition={{ duration: 0.2 }}
-              className="bg-light-bg py-12  rounded-lg border border-teal/20 flex flex-col items-center text-center"
+              className="bg-light-bg px-6 py-10 rounded-lg border border-teal/20 flex flex-col items-center text-center"
             >
               {/* Icon */}
               <div className="w-16 h-16 mb-4 flex items-center justify-center">
                 <img src={feature.icon} alt="" aria-hidden="true" className="w-full h-full" />
               </div>
 
-              <h3 className=" text-xl font-medium text-dark-blue mb-2">
+              <h3 className="text-xl font-medium text-dark-blue mb-2">
                 {feature.title}
               </h3>
+              <p className="text-sm text-gray leading-relaxed">{feature.body}</p>
             </m.div>
           ))}
         </m.div>
