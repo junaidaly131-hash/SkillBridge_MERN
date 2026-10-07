@@ -209,17 +209,18 @@ function AIRecommendedMatches() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-3 mt-5">
+                <div className="flex gap-2 sm:gap-3 mt-5">
                   <Button
                     variant="outline"
-                    className="flex-1 py-2.5"
+                    className="flex-1 min-w-0 py-2.5 whitespace-nowrap"
                     onClick={() => navigate(`/profile/${user.id}`)}
                   >
-                    View Profile
+                    <span className="sm:hidden">Profile</span>
+                    <span className="hidden sm:inline">View Profile</span>
                   </Button>
                   <Button
                     variant="primary"
-                    className="flex-1 py-2.5"
+                    className="flex-1 min-w-0 py-2.5 whitespace-nowrap"
                     onClick={() => handleMessage(user.id)}
                     disabled={chatLoading}
                   >

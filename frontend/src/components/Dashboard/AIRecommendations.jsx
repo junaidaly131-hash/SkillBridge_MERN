@@ -496,17 +496,22 @@ function AIRecommendations() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 mt-5">
+                  {/* Three controls share this row, so on a 375px card there is
+                      only about 100px for each of the first two. They do not
+                      wrap any more - a two-line "View Profile" was pushing the
+                      row past the card - and the label shortens below sm. */}
+                  <div className="flex gap-2 sm:gap-3 mt-5">
                     <Button
                       variant="outline"
-                      className="flex-1 py-2.5"
+                      className="flex-1 min-w-0 py-2.5 whitespace-nowrap"
                       onClick={() => navigate(`/profile/${match.teacher_id}`)}
                     >
-                      View Profile
+                      <span className="sm:hidden">Profile</span>
+                      <span className="hidden sm:inline">View Profile</span>
                     </Button>
                     <Button
                       variant="primary"
-                      className="flex-1 py-2.5"
+                      className="flex-1 min-w-0 py-2.5 whitespace-nowrap"
                       onClick={() => handleMessage(match.teacher_id)}
                     >
                       {startingChatWith === match.teacher_id ? "Starting..." : "Message"}
@@ -514,7 +519,7 @@ function AIRecommendations() {
                     <button
                       onClick={() => handleSchedule(match.teacher_id)}
                       disabled={startingChatWith === match.teacher_id}
-                      className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg font-family-poppins font-medium text-sm text-white bg-dark-blue hover:opacity-90 transition-all disabled:opacity-50 shrink-0"
+                      className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-lg font-family-poppins font-medium text-sm text-white bg-dark-blue hover:bg-medium-blue transition-all disabled:opacity-50 shrink-0"
                       aria-label="Schedule session"
                       title="Schedule session"
                     >
