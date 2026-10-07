@@ -60,7 +60,7 @@ function FeaturedTeachers() {
           viewport={inView}
         >
           {teachers.slice(0, SHOWN).map((t) => (
-            <Motion.div key={t.id} variants={fadeUp}>
+            <Motion.div key={t.id} variants={fadeUp} className="h-full">
               {/* The same card the directory uses, so the two can never drift
                   into looking like different products. Only fields the public
                   whitelist already exposes. */}

@@ -7,12 +7,9 @@ function TeacherCard({ teacher }) {
   return (
     <Link
       to={`/teachers/${teacher.id}`}
-      // block, explicitly. An <a> is inline by default, and an inline box
-      // paints its background per line rather than across the element - so the
-      // card rendered as a thin white strip with its content outside it. On
-      // the directory page this never showed, because a direct grid child gets
-      // blockified for free; wrapping it in anything else exposed it.
-      className="block bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow"
+      // Fill the grid cell even when another card has a longer bio. The column
+      // layout also lets the stats stay aligned along the bottom edge.
+      className="flex h-full flex-col bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow"
     >
       <div className="flex items-start gap-3 mb-3">
         {teacher.avatar ? (
@@ -55,7 +52,7 @@ function TeacherCard({ teacher }) {
         )}
       </div>
 
-      <div className="flex items-center gap-4 font-family-poppins text-xs text-gray">
+      <div className="mt-auto flex items-center gap-4 font-family-poppins text-xs text-gray">
         <span className="flex items-center gap-1">
           <Star className="text-yellow-500 fill-yellow-500" size={13} />
           {teacher.stats.avgRating > 0 ? teacher.stats.avgRating.toFixed(1) : "New"}
