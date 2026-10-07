@@ -26,7 +26,7 @@ export default defineConfig({
           // motion is only used by the landing page today, but it is a
           // dependency like any other: split out so upgrading our code
           // does not invalidate it in anyone's cache.
-          if (/node_modules[\/](motion|framer-motion|motion-dom|motion-utils)[\/]/.test(id)) {
+          if (/node_modules[\\/](motion|framer-motion|motion-dom|motion-utils)[\\/]/.test(id)) {
             return 'vendor-motion';
           }
           if (id.includes('react-router')) return 'vendor-router';

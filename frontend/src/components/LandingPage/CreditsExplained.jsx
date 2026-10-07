@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { ArrowRight, Check } from "lucide-react";
 import { fadeUp, inView } from "../../lib/motion";
 
@@ -45,7 +45,7 @@ function CreditsExplained() {
   return (
     <section className="py-20 bg-white font-family-poppins">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <m.div
+        <Motion.div
           className="text-center mb-12"
           variants={fadeUp}
           initial="hidden"
@@ -56,10 +56,10 @@ function CreditsExplained() {
           <p className="text-lg text-gray max-w-xl mx-auto">
             One currency for the whole platform, bought up front and spent per session.
           </p>
-        </m.div>
+        </Motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-          <m.ul
+          <Motion.ul
             className="space-y-4"
             variants={fadeUp}
             initial="hidden"
@@ -74,9 +74,9 @@ function CreditsExplained() {
                 {p}
               </li>
             ))}
-          </m.ul>
+          </Motion.ul>
 
-          <m.div
+          <Motion.div
             className="bg-light-bg border border-teal/20 rounded-xl p-8 text-center"
             variants={fadeUp}
             initial="hidden"
@@ -107,7 +107,7 @@ function CreditsExplained() {
               </Link>
               .
             </p>
-          </m.div>
+          </Motion.div>
         </div>
       </div>
     </section>

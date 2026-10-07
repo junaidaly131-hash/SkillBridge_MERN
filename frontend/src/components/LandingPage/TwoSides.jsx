@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { BookOpen, GraduationCap } from "lucide-react";
 import { fadeUp, inView, stagger } from "../../lib/motion";
 
@@ -33,7 +33,7 @@ function TwoSides() {
   return (
     <section className="py-20 bg-white font-family-poppins">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <m.div
+        <Motion.div
           className="text-center mb-12"
           variants={fadeUp}
           initial="hidden"
@@ -46,9 +46,9 @@ function TwoSides() {
           <p className="text-lg text-gray max-w-xl mx-auto">
             One account does both. Most people here teach one thing and learn another.
           </p>
-        </m.div>
+        </Motion.div>
 
-        <m.div
+        <Motion.div
           className="grid grid-cols-1 md:grid-cols-2 gap-6"
           variants={stagger(0.12)}
           initial="hidden"
@@ -58,7 +58,7 @@ function TwoSides() {
           {sides.map((side) => {
             const Icon = side.icon;
             return (
-              <m.div
+              <Motion.div
                 key={side.title}
                 variants={fadeUp}
                 whileHover={{ y: -4 }}
@@ -88,10 +88,10 @@ function TwoSides() {
                 >
                   {side.cta.label}
                 </Link>
-              </m.div>
+              </Motion.div>
             );
           })}
-        </m.div>
+        </Motion.div>
       </div>
     </section>
   );

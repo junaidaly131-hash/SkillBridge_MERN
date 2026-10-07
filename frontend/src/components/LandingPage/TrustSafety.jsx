@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { Clock, CreditCard, ShieldCheck, Wallet } from "lucide-react";
 import { fadeUp, inView, stagger } from "../../lib/motion";
 
@@ -46,7 +46,7 @@ function TrustSafety() {
   return (
     <section className="py-20 bg-light-bg font-family-poppins">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <m.div
+        <Motion.div
           className="text-center mb-12"
           variants={fadeUp}
           initial="hidden"
@@ -59,9 +59,9 @@ function TrustSafety() {
           <p className="text-lg text-gray max-w-xl mx-auto">
             The rules below are how the product actually behaves, not promises.
           </p>
-        </m.div>
+        </Motion.div>
 
-        <m.div
+        <Motion.div
           className="grid grid-cols-1 md:grid-cols-2 gap-5"
           variants={stagger()}
           initial="hidden"
@@ -71,7 +71,7 @@ function TrustSafety() {
           {items.map((item) => {
             const Icon = item.icon;
             return (
-              <m.div
+              <Motion.div
                 key={item.title}
                 variants={fadeUp}
                 className="bg-white rounded-xl p-6 shadow-sm flex gap-4"
@@ -83,12 +83,12 @@ function TrustSafety() {
                   <h3 className="text-base font-semibold text-black mb-1.5">{item.title}</h3>
                   <p className="text-sm text-gray leading-relaxed">{item.body}</p>
                 </div>
-              </m.div>
+              </Motion.div>
             );
           })}
-        </m.div>
+        </Motion.div>
 
-        <m.p
+        <Motion.p
           className="text-center text-sm text-gray mt-8"
           variants={fadeUp}
           initial="hidden"
@@ -104,7 +104,7 @@ function TrustSafety() {
             Refund Policy
           </Link>
           .
-        </m.p>
+        </Motion.p>
       </div>
     </section>
   );
