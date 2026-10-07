@@ -1,6 +1,6 @@
 import * as m from "motion/react-m";
 import { MessageSquare, Sparkles } from "lucide-react";
-import { fadeUp, inView, stagger } from "../../lib/motion";
+import { EASE, fadeUp, inView, stagger } from "../../lib/motion";
 
 // Illustrative only, and labelled as such on the page.
 //
@@ -8,9 +8,9 @@ import { fadeUp, inView, stagger } from "../../lib/motion";
 // product has not launched with enough teachers to show real ones here. The
 // skill and the score are enough to show what the matching produces.
 const EXAMPLE_MATCHES = [
-  { initial: "G", skill: "Graphic Design", match: 94 },
-  { initial: "P", skill: "Python", match: 88 },
-  { initial: "C", skill: "Cybersecurity", match: 81 },
+  { initial: "G", skill: "Graphic Design", teaches: "Teaches design", match: 94 },
+  { initial: "P", skill: "Python", teaches: "Teaches programming", match: 88 },
+  { initial: "C", skill: "Cybersecurity", teaches: "Teaches security", match: 81 },
 ];
 
 function AIMatching() {
@@ -19,12 +19,7 @@ function AIMatching() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Explanation */}
-          <m.div
-            variants={fadeUp}
-            initial="hidden"
-            whileInView="visible"
-            viewport={inView}
-          >
+          <m.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={inView}>
             <h2 className="text-3xl md:text-4xl font-medium text-black mb-4">
               Matching that works both ways
             </h2>
@@ -38,10 +33,11 @@ function AIMatching() {
             </p>
           </m.div>
 
-          {/* The example cards, moved out of the hero so the illustration there
-              stays the focus. */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
+          {/* The cards are capped rather than filling the column. Stretched to
+              full width they left a wide empty gap between the skill and the
+              button, which read as a layout fault rather than a design. */}
+          <div className="w-full max-w-md lg:ml-auto">
+            <div className="flex items-center gap-2 mb-4">
               <Sparkles className="text-teal" size={16} />
               <span className="text-sm text-gray">AI recommended matches</span>
               {/* Said plainly, beside the cards, not buried in small print. */}
@@ -57,30 +53,60 @@ function AIMatching() {
               whileInView="visible"
               viewport={inView}
             >
-              {EXAMPLE_MATCHES.map((item) => (
+              {EXAMPLE_MATCHES.map((item, i) => (
                 <m.div
                   key={item.skill}
                   variants={fadeUp}
-                  className="bg-light-bg rounded-xl p-4 shadow-sm flex items-center gap-3"
+                  whileHover={{ y: -3 }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-light-bg border border-teal/15 rounded-xl p-4"
                 >
-                  <div className="w-11 h-11 rounded-full bg-light-teal flex items-center justify-center shrink-0 font-semibold text-teal">
-                    {item.initial}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-11 h-11 rounded-full bg-light-teal flex items-center justify-center shrink-0 font-semibold text-teal">
+                      {item.initial}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-black truncate">{item.skill}</p>
+                      <p className="text-xs text-gray truncate">{item.teaches}</p>
+                    </div>
+
+                    {/* Styled like the real control but inert - this is a
+                        picture of the product, not a working button. */}
+                    <span
+                      aria-hidden="true"
+                      className="flex items-center gap-1.5 text-xs font-semibold text-teal bg-light-teal px-3 py-1.5 rounded-lg shrink-0"
+                    >
+                      <MessageSquare size={13} />
+                      Message
+                    </span>
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-black truncate">{item.skill}</p>
-                    <p className="text-xs text-teal font-medium">{item.match}% match</p>
-                  </div>
+                  {/* The score as a bar as well as a number. It fills the space
+                      the stretched layout used to waste, and makes the three
+                      cards comparable at a glance.
 
-                  {/* Styled like the real control but inert - this is a picture
-                      of the product, not a working button. */}
-                  <span
-                    aria-hidden="true"
-                    className="flex items-center gap-1.5 text-xs font-semibold text-teal bg-light-teal px-3 py-1.5 rounded-lg shrink-0"
-                  >
-                    <MessageSquare size={13} />
-                    Message
-                  </span>
+                      The width is plain CSS, not an animated value. Driving it
+                      from whileInView left the bars empty wherever the trigger
+                      never fired - below the fold on a phone, and for anyone
+                      with reduced motion - and an empty progress bar reads as
+                      broken rather than as un-animated. The fade is the
+                      enhancement; the fill is always correct. */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-1.5 rounded-full bg-light-teal overflow-hidden">
+                      <m.div
+                        className="h-full bg-teal rounded-full"
+                        style={{ width: `${item.match}%` }}
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={inView}
+                        transition={{ duration: 0.4, delay: 0.15 + i * 0.1, ease: EASE }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold text-teal shrink-0 tabular-nums">
+                      {item.match}% match
+                    </span>
+                  </div>
                 </m.div>
               ))}
             </m.div>
