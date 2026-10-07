@@ -139,3 +139,10 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #2A9D90;
 }
+
+/* Recharts gives internal SVG groups a tabindex, so clicking a sector or bar
+   can trigger the browser's rectangular focus outline around the SVG shape. */
+.recharts-wrapper:focus,
+.recharts-wrapper *:focus {
+  outline: none !important;
+}
