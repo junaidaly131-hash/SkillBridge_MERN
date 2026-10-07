@@ -1,3 +1,6 @@
+import * as m from "motion/react-m";
+import { inView, scaleIn, stagger } from "../../lib/motion";
+
 function Features() {
   const features = [
     {
@@ -33,37 +36,48 @@ function Features() {
     <section className="py-20 bg-white font-family-poppins">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-12">
+        <m.div
+          className="text-center mb-12"
+          variants={scaleIn}
+          initial="hidden"
+          whileInView="visible"
+          viewport={inView}
+        >
           <h2 className="text-4xl md:text-5xl font-medium text-black mb-4">
             Everything You Need to Learn & Teach
           </h2>
           <p className="text-lg  font-medium text-black max-w-2xl mx-auto">
             A complete platform designed to make skill exchange seamless, secure, and rewarding.
           </p>
-        </div>
+        </m.div>
 
-        {/* Feature Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Feature Cards - stagger in, then lift on hover. */}
+        <m.div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+          variants={stagger()}
+          initial="hidden"
+          whileInView="visible"
+          viewport={inView}
+        >
           {features.map((feature, index) => (
-            <div
+            <m.div
               key={index}
+              variants={scaleIn}
+              whileHover={{ y: -4 }}
+              transition={{ duration: 0.2 }}
               className="bg-light-bg py-12  rounded-lg border border-teal/20 flex flex-col items-center text-center"
             >
               {/* Icon */}
               <div className="w-16 h-16 mb-4 flex items-center justify-center">
-                <img
-                  src={feature.icon}
-                  alt={feature.title}
-                  className="w-full h-full"
-                />
+                <img src={feature.icon} alt="" aria-hidden="true" className="w-full h-full" />
               </div>
 
               <h3 className=" text-xl font-medium text-dark-blue mb-2">
                 {feature.title}
               </h3>
-            </div>
+            </m.div>
           ))}
-        </div>
+        </m.div>
       </div>
     </section>
   );

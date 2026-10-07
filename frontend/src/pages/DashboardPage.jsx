@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Star } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
+import { Navigate } from "react-router-dom";
 import { fetchWallet } from "../store/creditsSlice";
 import { fetchMeetings } from "../store/meetingsSlice";
 import { fetchProfile } from "../store/profileSlice";
@@ -16,10 +17,18 @@ function DashboardPage() {
   const { profile } = useSelector((state) => state.profile);
 
   useEffect(() => {
+    // Admins have a separate platform-management area and should never load
+    // end-user wallet, meeting, profile, verification, or recommendation UI.
+    if (user?.role === "admin") return;
+
     dispatch(fetchWallet());
     dispatch(fetchMeetings());
     dispatch(fetchProfile());
-  }, [dispatch]);
+  }, [dispatch, user?.role]);
+
+  if (user?.role === "admin") {
+    return <Navigate to="/admin/transactions" replace />;
+  }
 
   const creditBalance = wallet?.balance ?? 0;
   const scheduledSessions = Array.isArray(meetings) ? meetings.length : 0;

@@ -23,6 +23,12 @@ export default defineConfig({
 
           // react-router pulls in its own copy of history/remix internals; it
           // is matched before react so those don't land in the react chunk.
+          // motion is only used by the landing page today, but it is a
+          // dependency like any other: split out so upgrading our code
+          // does not invalidate it in anyone's cache.
+          if (/node_modules[\/](motion|framer-motion|motion-dom|motion-utils)[\/]/.test(id)) {
+            return 'vendor-motion';
+          }
           if (id.includes('react-router')) return 'vendor-router';
           if (/node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'vendor-react';
           if (/node_modules[\\/](@reduxjs[\\/]toolkit|react-redux|redux|immer|reselect)[\\/]/.test(id)) {

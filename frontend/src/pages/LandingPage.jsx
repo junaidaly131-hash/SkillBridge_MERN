@@ -7,6 +7,8 @@ import Hero from '../components/LandingPage/Hero';
 import Features from '../components/LandingPage/Features';
 import HowItWorks from '../components/LandingPage/HowItWorks';
 import CTA from '../components/LandingPage/CTA';
+import AIMatching from '../components/LandingPage/AIMatching';
+import FAQ from '../components/LandingPage/FAQ';
 
 function LandingPage() {
   const location = useLocation();
@@ -38,6 +40,8 @@ function LandingPage() {
         <div id="how-it-works">
           <HowItWorks />
         </div>
+        <AIMatching />
+        <FAQ />
         <CTA />
       </main>
       <Footer />
