@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { CalendarCheck, Loader2, MessageSquare, ShieldCheck, Video } from "lucide-react";
+import { ArrowRight, CalendarCheck, Loader2, MessageSquare, ShieldCheck, Video } from "lucide-react";
 import Header from "../components/LandingPage/Header";
 import Footer from "../components/LandingPage/Footer";
 import TeacherCard from "../components/Teachers/TeacherCard";
@@ -165,19 +165,24 @@ function LearnSkillPage() {
                 })}
               </div>
 
-              <div className="bg-white rounded-xl p-8 shadow-sm text-center">
-                <p className="font-family-poppins text-xl font-semibold text-black mb-2">
+              {/* Same treatment as the landing page's closing CTA. A white card
+                  on an almost-white page reads as another content block, not as
+                  the thing to do next - the dark gradient is what the brand
+                  already uses to say "this one is the action". */}
+              <div className="bg-gradient-blue rounded-2xl px-8 py-14 flex flex-col items-center text-center">
+                <h2 className="font-family-poppins text-2xl sm:text-3xl font-semibold text-white mb-3">
                   Ready to start {data.skill.name}?
-                </p>
-                <p className="font-family-poppins text-sm text-gray mb-6 max-w-md mx-auto">
+                </h2>
+                <p className="font-family-poppins text-base text-white/80 max-w-lg mb-8 leading-relaxed">
                   Creating an account is free, and so is your first session. You only need credits
                   once you book a second one.
                 </p>
                 <Link
                   to="/signup"
-                  className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal px-7 py-3 rounded-lg hover:opacity-90 transition-all"
+                  className="font-family-poppins text-base font-semibold text-white bg-teal px-8 py-3 rounded-lg hover:opacity-90 transition-all inline-flex items-center gap-2"
                 >
                   Get started free
+                  <ArrowRight size={18} />
                 </Link>
               </div>
             </>

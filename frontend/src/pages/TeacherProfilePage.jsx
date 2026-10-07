@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Award, BadgeCheck, Globe, Loader2, MapPin, Star } from "lucide-react";
+import { ArrowRight, Award, BadgeCheck, Globe, Loader2, MapPin, Star } from "lucide-react";
 import Header from "../components/LandingPage/Header";
 import Footer from "../components/LandingPage/Footer";
 import apiClient from "../api/client";
@@ -209,18 +209,21 @@ function TeacherProfilePage() {
                 </div>
               )}
 
-              <div className="bg-white rounded-xl p-6 shadow-sm text-center">
-                <p className="font-family-poppins text-base font-semibold text-black mb-1">
+              {/* Matches the landing page's closing CTA and the skill pages, so
+                  the public side of the site ends the same way everywhere. */}
+              <div className="bg-gradient-blue rounded-2xl px-8 py-12 flex flex-col items-center text-center">
+                <h2 className="font-family-poppins text-2xl font-semibold text-white mb-3">
                   Want to learn from {teacher.name.split(" ")[0]}?
-                </p>
-                <p className="font-family-poppins text-sm text-gray mb-5">
-                  Create a free account to message them and book a session.
+                </h2>
+                <p className="font-family-poppins text-base text-white/80 max-w-md mb-7 leading-relaxed">
+                  Create a free account to message them and book a session. Your first one is free.
                 </p>
                 <Link
                   to="/signup"
-                  className="inline-block font-family-poppins text-sm font-semibold text-white bg-teal px-6 py-2.5 rounded-lg hover:opacity-90 transition-all"
+                  className="font-family-poppins text-base font-semibold text-white bg-teal px-8 py-3 rounded-lg hover:opacity-90 transition-all inline-flex items-center gap-2"
                 >
                   Get started free
+                  <ArrowRight size={18} />
                 </Link>
               </div>
             </>
