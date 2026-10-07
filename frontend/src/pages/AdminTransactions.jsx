@@ -180,16 +180,16 @@ function AdminTransactions() {
         })}
       </div>
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <h2 className="font-family-poppins text-lg font-semibold text-black">Trends</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {DATE_RANGES.map((range) => (
             <button
               key={range.days}
               onClick={() => setDays(range.days)}
               className={`font-family-poppins text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
                 days === range.days
-                  ? "bg-teal-button text-white"
+                  ? "bg-[#227E73] text-white hover:bg-[#1C6A61] hover:text-white"
                   : "border border-[#D0D0D0] text-gray hover:bg-gray-50"
               }`}
             >
@@ -200,7 +200,7 @@ function AdminTransactions() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <div className="lg:col-span-2 bg-white rounded-xl p-6 shadow-sm">
+        <div className="lg:col-span-2 bg-white rounded-xl p-4 sm:p-6 shadow-sm">
           <p className="font-family-poppins text-sm font-semibold text-black mb-4">
             Revenue Over Time
           </p>
@@ -214,7 +214,12 @@ function AdminTransactions() {
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={analytics.revenueByDay} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <LineChart
+                data={analytics.revenueByDay}
+                margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                className="outline-none"
+                title="Revenue over time"
+              >
                 <CartesianGrid stroke="#F0F0F0" vertical={false} />
                 <XAxis
                   dataKey="date"
@@ -228,7 +233,8 @@ function AdminTransactions() {
                   tick={{ fontSize: 12, fill: "#575757" }}
                   axisLine={false}
                   tickLine={false}
-                  width={48}
+                  width={68}
+                  tickMargin={8}
                 />
                 <Tooltip
                   formatter={(value) => [formatCurrency(value), "Revenue"]}
@@ -248,7 +254,7 @@ function AdminTransactions() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm">
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm">
           <p className="font-family-poppins text-sm font-semibold text-black mb-4">
             Transaction Status
           </p>
@@ -262,7 +268,7 @@ function AdminTransactions() {
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
+              <PieChart className="outline-none" title="Transaction status breakdown">
                 <Pie
                   data={statusData}
                   dataKey="count"
@@ -287,7 +293,7 @@ function AdminTransactions() {
           )}
         </div>
 
-        <div className="lg:col-span-3 bg-white rounded-xl p-6 shadow-sm">
+        <div className="lg:col-span-3 bg-white rounded-xl p-4 sm:p-6 shadow-sm">
           <p className="font-family-poppins text-sm font-semibold text-black mb-4">
             New User Signups
           </p>
@@ -301,7 +307,12 @@ function AdminTransactions() {
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={analytics.userSignupsByDay} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <BarChart
+                data={analytics.userSignupsByDay}
+                margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                className="outline-none"
+                title="New user signups"
+              >
                 <CartesianGrid stroke="#F0F0F0" vertical={false} />
                 <XAxis
                   dataKey="date"
@@ -318,6 +329,7 @@ function AdminTransactions() {
                   width={32}
                 />
                 <Tooltip
+                  cursor={false}
                   formatter={(value) => [value, "New signups"]}
                   labelFormatter={formatShortDate}
                   contentStyle={{ fontFamily: "inherit", fontSize: 13, borderRadius: 8 }}
