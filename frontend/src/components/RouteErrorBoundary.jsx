@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useRouteError } from "react-router-dom";
 
 // Vite fingerprints every chunk, so a deploy replaces them all. Anyone with the
@@ -21,11 +21,8 @@ function RouteErrorBoundary() {
   const message = String(error?.message || error || "");
   const isChunkError = CHUNK_ERROR.test(message);
 
-  const [reloading, setReloading] = useState(false);
-
-  useEffect(() => {
-    if (!isChunkError) return;
-
+  const shouldReload = useMemo(() => {
+    if (!isChunkError) return false;
     let last = 0;
     try {
       last = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
@@ -33,18 +30,21 @@ function RouteErrorBoundary() {
       // Private mode - fall through and allow the one reload.
     }
 
-    if (Date.now() - last < RELOAD_COOLDOWN_MS) return;
+    return Date.now() - last >= RELOAD_COOLDOWN_MS;
+  }, [isChunkError]);
+
+  useEffect(() => {
+    if (!shouldReload) return;
 
     try {
       sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
     } catch {
       // Can't record the attempt; still worth trying once.
     }
-    setReloading(true);
     window.location.reload();
-  }, [isChunkError]);
+  }, [shouldReload]);
 
-  if (isChunkError && reloading) {
+  if (shouldReload) {
     return (
       <div className="min-h-screen bg-light-bg flex flex-col items-center justify-center gap-4">
         <img src="/assets/logo.png" alt="SkillBridge" className="h-12 animate-pulse" />
