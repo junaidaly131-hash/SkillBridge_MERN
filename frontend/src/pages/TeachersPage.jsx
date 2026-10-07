@@ -7,6 +7,9 @@ import TeacherCard from "../components/Teachers/TeacherCard";
 import apiClient from "../api/client";
 import { usePageMeta } from "../hooks/usePageMeta";
 
+// How many skill links to show before collapsing the rest behind "+N more".
+const SKILL_PILL_LIMIT = 12;
+
 // The public directory. Besides being something a visitor can judge the
 // platform by before signing up, this is the page that gives every teacher
 // profile an internal link - without one, Google has no route to them at all.
@@ -22,6 +25,7 @@ function TeachersPage() {
   // Links out to the per-skill pages. This is the only route a crawler has to
   // them, so it is a real list of <Link>s rather than a filter control.
   const [skills, setSkills] = useState([]);
+  const [showAllSkills, setShowAllSkills] = useState(false);
 
   usePageMeta({
     title: skill ? `${skill} teachers` : "Find a teacher",
@@ -117,7 +121,11 @@ function TeachersPage() {
             <div className="max-w-3xl mx-auto mb-10 text-center">
               <p className="font-family-poppins text-sm text-gray mb-3">Browse by skill</p>
               <div className="flex flex-wrap justify-center gap-2">
-                {skills.map((s) => (
+                {/* Capped, because this grows with every skill anyone teaches and
+                    an uncapped row turns into a wall. The ones shown are those
+                    with the most teachers, which is what a visitor wants anyway;
+                    the rest are reachable through search. */}
+                {(showAllSkills ? skills : skills.slice(0, SKILL_PILL_LIMIT)).map((s) => (
                   <Link
                     key={s.slug}
                     to={`/learn/${s.slug}`}
@@ -126,6 +134,16 @@ function TeachersPage() {
                     {s.name}
                   </Link>
                 ))}
+
+                {!showAllSkills && skills.length > SKILL_PILL_LIMIT && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSkills(true)}
+                    className="font-family-poppins text-sm text-teal px-3.5 py-1.5 rounded-full hover:underline"
+                  >
+                    +{skills.length - SKILL_PILL_LIMIT} more
+                  </button>
+                )}
               </div>
             </div>
           )}

@@ -1,5 +1,6 @@
 import express from 'express';
 import User from '../models/User.js';
+import { canonicalSkillName, toSkillSlug, SKILL_ALIASES } from '../config/skillVocabulary.js';
 
 // Everything served here is readable by anyone on the internet, with no token.
 // That makes it the one router where the shape of a response is a security
@@ -29,11 +30,6 @@ const PUBLICLY_LISTABLE = {
 // sessions with named counterparties.
 const PUBLIC_FIELDS = 'name avatar bio location languages skillsTeaching certifications stats createdAt';
 
-// "Graphic Design" -> "graphic-design". Used both ways: to build the URL of a
-// skill page and to find the skill again from one.
-export const toSkillSlug = (name) =>
-  String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-
 /**
  * Distinct skills that at least one publicly visible teacher actually teaches.
  *
@@ -42,29 +38,39 @@ export const toSkillSlug = (name) =>
  * currently not indexed" and they drag on the rest of the site. So the set of
  * skill pages grows as teachers get verified, with no code change.
  *
- * Skills are grouped case-insensitively - "Python" and "python" are one skill -
- * and the most common spelling wins as the display name.
+ * Variants are folded together first - see config/skillVocabulary.js - so
+ * "React", "reactjs" and "React Development" become one page with all three
+ * teachers on it rather than three thin pages splitting them.
+ *
+ * Counted per teacher, not per row: someone listing both "React" and "React
+ * Development" is one React teacher, not two.
  */
 async function listPublicSkills() {
-  const rows = await User.aggregate([
-    { $match: PUBLICLY_LISTABLE },
-    { $unwind: '$skillsTeaching' },
-    {
-      $group: {
-        _id: { $toLower: '$skillsTeaching.name' },
-        names: { $push: '$skillsTeaching.name' },
-        teacherCount: { $sum: 1 },
-      },
-    },
-    { $sort: { teacherCount: -1, _id: 1 } },
-  ]);
+  const users = await User.find(PUBLICLY_LISTABLE).select('_id skillsTeaching');
 
-  return rows.map((r) => {
-    const tally = new Map();
-    for (const n of r.names) tally.set(n, (tally.get(n) || 0) + 1);
-    const name = [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0];
-    return { slug: toSkillSlug(name), name, teacherCount: r.teacherCount };
-  });
+  const bySkill = new Map();
+  for (const user of users) {
+    const seen = new Set();
+    for (const s of user.skillsTeaching || []) {
+      const name = canonicalSkillName(s.name);
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      bySkill.set(name, (bySkill.get(name) || 0) + 1);
+    }
+  }
+
+  return [...bySkill.entries()]
+    .map(([name, teacherCount]) => ({ slug: toSkillSlug(name), name, teacherCount }))
+    .sort((a, b) => b.teacherCount - a.teacherCount || a.name.localeCompare(b.name));
+}
+
+/** Every raw spelling that folds into one canonical skill, for querying. */
+function spellingsOf(canonicalName) {
+  const out = new Set([canonicalName]);
+  for (const [alias, target] of Object.entries(SKILL_ALIASES)) {
+    if (target === canonicalName) out.add(alias);
+  }
+  return [...out];
 }
 
 function toPublicTeacher(user) {
@@ -169,8 +175,20 @@ router.get('/skills', async (req, res) => {
 // GET /api/public/skills/:slug - one skill page's worth of data.
 router.get('/skills/:slug', async (req, res) => {
   try {
-    const slug = toSkillSlug(req.params.slug);
-    const skill = (await listPublicSkills()).find((s) => s.slug === slug);
+    const requested = toSkillSlug(req.params.slug);
+    const all = await listPublicSkills();
+
+    let skill = all.find((s) => s.slug === requested);
+
+    // An alias slug still has to land somewhere: /learn/react should reach the
+    // React Development page rather than 404, both for anyone following an old
+    // link and so there is one page per skill instead of several URLs serving
+    // it. The caller is told the canonical slug and redirects to it.
+    if (!skill) {
+      const canonical = canonicalSkillName(String(req.params.slug).replace(/-+/g, ' '));
+      const canonicalSlug = canonical ? toSkillSlug(canonical) : null;
+      skill = all.find((s) => s.slug === canonicalSlug);
+    }
 
     // A skill nobody teaches has no page. 404 rather than an empty shell, so
     // Google is never offered a page with nothing on it.
@@ -178,12 +196,16 @@ router.get('/skills/:slug', async (req, res) => {
       return res.status(404).json({ message: 'No teachers for this skill yet.' });
     }
 
-    // Matched on the exact name, anchored and escaped, so "React" cannot also
-    // pull in "React Native".
-    const escaped = skill.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Every spelling that folds into this skill, each anchored and escaped, so
+    // the page gathers the "React" and "reactjs" teachers too - while "React
+    // Native" stays its own skill, because matching is exact and never a
+    // substring.
+    const patterns = spellingsOf(skill.name).map(
+      (s) => new RegExp(`^${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+    );
     const teachers = await User.find({
       ...PUBLICLY_LISTABLE,
-      'skillsTeaching.name': new RegExp(`^${escaped}$`, 'i'),
+      'skillsTeaching.name': { $in: patterns },
     })
       .select(PUBLIC_FIELDS)
       .sort({ 'stats.avgRating': -1, 'stats.sessionsTaught': -1 })

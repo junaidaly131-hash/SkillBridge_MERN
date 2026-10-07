@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { CalendarCheck, Loader2, MessageSquare, ShieldCheck, Video } from "lucide-react";
 import Header from "../components/LandingPage/Header";
 import Footer from "../components/LandingPage/Footer";
@@ -73,6 +73,13 @@ function LearnSkillPage() {
       body: "You meet over video inside SkillBridge. Credits only move once the session has actually taken place.",
     },
   ];
+
+  // The API resolves aliases, so /learn/react answers with the React
+  // Development skill. Move to its own URL rather than serving the same page
+  // under two addresses, which would have them competing in search.
+  if (!loading && data?.skill && data.skill.slug !== slug) {
+    return <Navigate to={`/learn/${data.skill.slug}`} replace />;
+  }
 
   return (
     <div className="min-h-screen bg-light-bg flex flex-col">
