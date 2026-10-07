@@ -15,7 +15,12 @@ const EXAMPLE_MATCHES = [
 
 function AIMatching() {
   return (
-    <section className="py-20 bg-white font-family-poppins">
+    // A soft wash rather than a flat panel, so this section reads as its own
+    // thing between two light-bg sections. Built only from tokens the app
+    // already has - light-teal into white - not a new colour, and not the dark
+    // bg-gradient-blue, which would need white text and make this a different
+    // section entirely.
+    <section className="py-20 bg-gradient-to-b from-white via-light-teal to-white font-family-poppins">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Explanation */}
@@ -59,7 +64,7 @@ function AIMatching() {
                   variants={fadeUp}
                   whileHover={{ y: -3 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-light-bg border border-teal/15 rounded-xl p-4"
+                  className="bg-white border border-teal/10 rounded-xl p-4 shadow-sm"
                 >
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-11 h-11 rounded-full bg-light-teal flex items-center justify-center shrink-0 font-semibold text-teal">
