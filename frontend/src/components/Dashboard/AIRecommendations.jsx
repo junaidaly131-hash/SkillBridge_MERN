@@ -4,6 +4,9 @@ import { useNavigate, Link } from "react-router-dom";
 import { Sparkles, Search, Star, Monitor, MapPin, Clock, Brain, Loader2, AlertCircle, CalendarPlus, BadgeCheck, GraduationCap, BookOpen } from "lucide-react";
 import Button from "../../ui/Button";
 import Pagination from "../../ui/Pagination";
+import { AnimatePresence } from "motion/react";
+import * as m from "motion/react-m";
+import { fadeUp, stagger } from "../../lib/motion";
 import { createConversation } from "../../store/chatSlice";
 import { fetchRecommendations } from "../../store/recommendationsSlice";
 import { fetchUsers } from "../../store/usersSlice";
@@ -354,7 +357,21 @@ function AIRecommendations() {
 
       {!showNoSkillsState && !loading && !activeError && filtered.length > 0 && (
         <>
-          <div className="space-y-4">
+          {/* Keyed on the tab so switching cross-fades the whole list rather
+              than swapping rows in place. Keyed on the page too, so paging
+              re-runs the stagger instead of leaving the new rows static.
+              AnimatePresence only governs how this list appears - the data is
+              already in memory, so nothing refetches and the list does not
+              jump. */}
+          <AnimatePresence mode="wait" initial={false}>
+          <m.div
+            key={`${direction}-${ctrl.page}`}
+            className="space-y-4"
+            variants={stagger(0.06)}
+            initial="hidden"
+            animate="visible"
+            exit={{ opacity: 0, transition: { duration: 0.15 } }}
+          >
             {paginated.map((match) => {
               const matchData = userMap[match.teacher_id];
               const theirSkills = match.subjects || [];
@@ -375,7 +392,11 @@ function AIRecommendations() {
                 matchData?.stats?.sessionsLearned ?? match.sessions_learned ?? 0;
 
               return (
-                <div key={match.teacher_id} className="border border-[#E5E5E5] rounded-xl p-5">
+                <m.div
+                  key={match.teacher_id}
+                  variants={fadeUp}
+                  className="border border-[#E5E5E5] rounded-xl p-5"
+                >
                   <div className="flex flex-col sm:flex-row gap-4">
                     <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center shrink-0">
                       {matchData?.avatar ? (
@@ -494,10 +515,11 @@ function AIRecommendations() {
                       <span className="hidden sm:inline">Schedule</span>
                     </button>
                   </div>
-                </div>
+                </m.div>
               );
             })}
-          </div>
+          </m.div>
+          </AnimatePresence>
 
           {totalPages > 1 && (
             <Pagination
