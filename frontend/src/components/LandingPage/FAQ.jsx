@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import * as m from "motion/react-m";
+import * as Motion from "motion/react-m";
 import { ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import apiClient from "../../api/client";
@@ -52,13 +52,13 @@ function buildFaqs(pack) {
   ];
 }
 
-function FaqItem({ faq, isOpen, onToggle, index }) {
+function FaqItem({ faq, isOpen, onToggle }) {
   const id = useId();
   const panelId = `faq-panel-${id}`;
   const buttonId = `faq-button-${id}`;
 
   return (
-    <m.div variants={fadeUp} className="border-b border-[#E5E5E5] last:border-b-0">
+    <Motion.div variants={fadeUp} className="border-b border-[#E5E5E5] last:border-b-0">
       <h3>
         <button
           id={buttonId}
@@ -72,13 +72,13 @@ function FaqItem({ faq, isOpen, onToggle, index }) {
             {faq.q}
           </span>
           {/* Rotation only - the icon never changes size or position. */}
-          <m.span
+          <Motion.span
             animate={{ rotate: isOpen ? 180 : 0 }}
             transition={{ duration: 0.25, ease: EASE }}
             className="shrink-0 text-teal"
           >
             <ChevronDown size={20} />
-          </m.span>
+          </Motion.span>
         </button>
       </h3>
 
@@ -88,7 +88,7 @@ function FaqItem({ faq, isOpen, onToggle, index }) {
           user-initiated, so it does not count against CLS. */}
       <AnimatePresence initial={false}>
         {isOpen && (
-          <m.div
+          <Motion.div
             key="panel"
             id={panelId}
             role="region"
@@ -99,10 +99,10 @@ function FaqItem({ faq, isOpen, onToggle, index }) {
             transition={{ duration: 0.2, ease: EASE }}
           >
             <p className="text-sm sm:text-base text-gray leading-relaxed pb-5 pr-8">{faq.a}</p>
-          </m.div>
+          </Motion.div>
         )}
       </AnimatePresence>
-    </m.div>
+    </Motion.div>
   );
 }
 
@@ -144,7 +144,7 @@ function FAQ() {
   return (
     <section className="py-20 bg-light-bg font-family-poppins">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <m.div
+        <Motion.div
           className="text-center mb-10"
           variants={fadeUp}
           initial="hidden"
@@ -165,9 +165,9 @@ function FAQ() {
             </Link>
             .
           </p>
-        </m.div>
+        </Motion.div>
 
-        <m.div
+        <Motion.div
           className="bg-white rounded-xl px-6 shadow-sm"
           variants={stagger(0.05)}
           initial="hidden"
@@ -178,12 +178,11 @@ function FAQ() {
             <FaqItem
               key={faq.q}
               faq={faq}
-              index={i}
               isOpen={openIndex === i}
               onToggle={() => setOpenIndex(openIndex === i ? -1 : i)}
             />
           ))}
-        </m.div>
+        </Motion.div>
       </div>
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
