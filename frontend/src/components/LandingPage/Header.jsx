@@ -1,12 +1,21 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Button from '../../ui/Button';
 
 function Header() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // These point at sections of the landing page, but this header is on every
+  // public page. From /teachers or /contact the element simply isn't in the
+  // document, so the old version found nothing and silently did nothing -
+  // navigate home first and let LandingPage scroll once it has rendered.
+  // Same fix the footer already carries.
   const scrollToSection = (sectionId) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (location.pathname !== '/') {
+      navigate('/', { state: { scrollTo: sectionId } });
+      return;
     }
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
