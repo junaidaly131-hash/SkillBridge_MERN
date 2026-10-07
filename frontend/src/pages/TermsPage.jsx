@@ -10,7 +10,7 @@ function TermsPage() {
   });
 
   return (
-    <LegalLayout title="Terms & Conditions" lastUpdated="September 4, 2026">
+    <LegalLayout title="Terms & Conditions" lastUpdated="October 7, 2026">
       <h2>1. About SkillBridge</h2>
       <p>
         SkillBridge ("we," "us," "the platform") is operated by Junaid Ali, a sole proprietor
@@ -43,6 +43,11 @@ function TermsPage() {
         </li>
         <li>Credits do not expire unless your account is closed or terminated.</li>
         <li>
+          You must hold enough credits to book a session, but they are not deducted at that point.
+          Credits move only once a session is marked complete, so cancelling a booking never costs
+          you anything.
+        </li>
+        <li>
           Teachers may request payout of credits earned, subject to our minimum payout threshold
           and payout processing terms, as described in-app.
         </li>
@@ -50,9 +55,19 @@ function TermsPage() {
 
       <h2>5. Verification</h2>
       <p>
-        Teachers may voluntarily submit documents for verification. A "Verified" badge does not
-        constitute a guarantee of teaching quality or credentials — it reflects that submitted
-        documents were reviewed by our team.
+        Verification is required before parts of the platform become available. Every user submits
+        a national ID (CNIC) so we can confirm who they are. Anyone who lists a skill to teach also
+        submits at least one credential — a degree, transcript, teaching certificate, experience
+        letter or portfolio. Our team reviews these before approving an account.
+      </p>
+      <p>
+        An unverified account can browse, message, buy credits and use one free trial session. It
+        cannot take teaching sessions, book sessions beyond that free trial, or cash out credits
+        earned by teaching.
+      </p>
+      <p>
+        A "Verified" badge does not constitute a guarantee of teaching quality or credentials — it
+        reflects that submitted documents were reviewed by our team.
       </p>
 
       <h2>6. User Conduct</h2>

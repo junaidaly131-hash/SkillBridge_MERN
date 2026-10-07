@@ -35,7 +35,7 @@ function buildFaqs(pack) {
     },
     {
       q: "What happens if I cancel a booked session?",
-      a: "Nothing is charged. Credits move only when a session is marked complete, so cancelling before it starts never costs you anything and there is nothing to refund.",
+      a: "Nothing is charged. You need enough credits in your wallet to book, but they are not taken until the session is marked complete - so cancelling before it starts never costs you anything and there is nothing to refund.",
     },
     {
       q: "How do I cash out what I've earned?",

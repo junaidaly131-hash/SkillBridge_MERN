@@ -33,7 +33,7 @@ const items = [
   {
     icon: Wallet,
     title: "Credits leave your wallet only after the session",
-    body: "Booking costs nothing. Credits move when the session is marked complete, so cancelling beforehand never charges you.",
+    body: "You need the credits in your wallet to book, but nothing is taken then. They move when the session is marked complete, so cancelling beforehand never charges you.",
   },
   {
     icon: CreditCard,

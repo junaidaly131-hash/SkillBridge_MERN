@@ -10,7 +10,7 @@ function PrivacyPage() {
   });
 
   return (
-    <LegalLayout title="Privacy Policy" lastUpdated="September 4, 2026">
+    <LegalLayout title="Privacy Policy" lastUpdated="October 7, 2026">
       <h2>1. Information We Collect</h2>
       <ul>
         <li>
@@ -22,9 +22,10 @@ function PrivacyPage() {
           (optional).
         </li>
         <li>
-          <strong>Verification documents:</strong> if you submit teacher verification, we
-          collect and store the documents you upload (e.g., certificates, ID) via our secure
-          storage provider.
+          <strong>Verification documents:</strong> verification is required to teach, to book
+          beyond your free trial session, and to cash out. We collect and store the documents you
+          upload for it — a national ID, and for teachers a credential such as a degree,
+          transcript or certificate — via our secure storage provider.
         </li>
         <li>
           <strong>Payment information:</strong> when you purchase credits, payment is processed
