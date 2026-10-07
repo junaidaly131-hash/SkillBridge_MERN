@@ -217,8 +217,7 @@ function AdminTransactions() {
               <LineChart
                 data={analytics.revenueByDay}
                 margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                className="outline-none"
-                title="Revenue over time"
+                accessibilityLayer={false}
               >
                 <CartesianGrid stroke="#F0F0F0" vertical={false} />
                 <XAxis
@@ -268,7 +267,7 @@ function AdminTransactions() {
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <PieChart className="outline-none" title="Transaction status breakdown">
+              <PieChart accessibilityLayer={false}>
                 <Pie
                   data={statusData}
                   dataKey="count"
@@ -310,8 +309,7 @@ function AdminTransactions() {
               <BarChart
                 data={analytics.userSignupsByDay}
                 margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                className="outline-none"
-                title="New user signups"
+                accessibilityLayer={false}
               >
                 <CartesianGrid stroke="#F0F0F0" vertical={false} />
                 <XAxis
