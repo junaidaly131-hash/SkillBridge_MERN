@@ -11,6 +11,21 @@ import {
   clearFeedbackError,
 } from "../store/feedbackSlice";
 
+// Day plus time. The date alone is not enough to tell two sessions apart when
+// they are with the same person, for the same skill, on the same day - which is
+// exactly what the picker was showing.
+function sessionWhen(s) {
+  if (!s?.startsAt) return s?.date || "";
+  const d = new Date(s.startsAt);
+  if (Number.isNaN(d.getTime())) return s.date || "";
+  return d.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function FeedbackPage() {
   const dispatch = useDispatch();
   const { showSuccess, showError, showInfo } = useToast();
@@ -145,7 +160,7 @@ function FeedbackPage() {
                 <option value="">Select a session...</option>
                 {pendingSessions.map((s) => (
                   <option key={s.meetingId} value={s.meetingId}>
-                    {s.person} - {s.skill} ({s.date})
+                    {s.person} - {s.skill} ({sessionWhen(s)})
                   </option>
                 ))}
               </select>

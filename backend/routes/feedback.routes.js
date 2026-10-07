@@ -133,6 +133,11 @@ router.get('/pending', authenticateToken, async (req, res) => {
           // fallback rather than an empty label.
           skill: m.skill || m.title,
           date: m.startsAt.toISOString().split('T')[0],
+          // The full instant as well as the day. Two sessions with the same
+          // person and skill on the same date produced two identical options
+          // in the feedback picker, with no way to tell which was which. The
+          // client formats this in the viewer's own timezone.
+          startsAt: m.startsAt,
           otherUserId: other?._id || null,
         };
       });
