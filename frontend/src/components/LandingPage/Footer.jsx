@@ -26,8 +26,8 @@ function Footer() {
               className="h-10 mb-4 "
             />
             <p className="text-black max-w-sm  font-light text-sm">
-              AI-powered skill exchange platform connecting learners and mentors
-              worldwide.
+              AI-powered skill exchange platform connecting learners and
+              teachers across Pakistan.
             </p>
             <a
               href="mailto:support@skill-bridge.me"

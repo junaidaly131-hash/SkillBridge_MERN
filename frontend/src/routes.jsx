@@ -1,45 +1,63 @@
+import { lazy } from "react";
 import { createBrowserRouter } from "react-router-dom";
-import LandingPage from "./pages/LandingPage";
-import LoginPage from "./pages/LoginPage";
-import SignUpPage from "./pages/SignUpPage";
-import TwoFactorPage from "./pages/TwoFactorPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+
 import RootLayout from "./layouts/RootLayout";
-import DashboardLayout from "./layouts/DashboardLayout";
-import DashboardPage from "./pages/DashboardPage";
-import ProfilePage from "./pages/ProfilePage";
-import ViewProfilePage from "./pages/ViewProfilePage";
-import ChatPage from "./pages/ChatPage";
-import FeedbackPage from "./pages/FeedbackPage";
-import CreditsPage from "./pages/CreditsPage";
-import PurchaseHistory from "./pages/PurchaseHistory";
-import CreditsSuccess from "./pages/CreditsSuccess";
-import CreditsCancelled from "./pages/CreditsCancelled";
-import SessionHistory from "./pages/SessionHistory";
-import AdminTransactions from "./pages/AdminTransactions";
-import AdminUsers from "./pages/AdminUsers";
-import AdminAuditLog from "./pages/AdminAuditLog";
-import AdminVerifications from "./pages/AdminVerifications";
-import AdminRefunds from "./pages/AdminRefunds";
-import AdminPayouts from "./pages/AdminPayouts";
-import AdminReports from "./pages/AdminReports";
-import AdminSessionDisputes from "./pages/AdminSessionDisputes";
-import VideoCallPage from "./pages/VideoCallPage";
-import TermsPage from "./pages/TermsPage";
-import PrivacyPage from "./pages/PrivacyPage";
-import RefundPolicyPage from "./pages/RefundPolicyPage";
-import ContactPage from "./pages/ContactPage";
-import TeachersPage from "./pages/TeachersPage";
-import TeacherProfilePage from "./pages/TeacherProfilePage";
-import LearnSkillPage from "./pages/LearnSkillPage";
-import SupportPage from "./pages/SupportPage";
+import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import AdminRoute from "./components/AdminRoute";
 
+// Eager: the three pages a first-time visitor actually lands on. Making these
+// lazy would only add a network round trip before anything renders.
+import LandingPage from "./pages/LandingPage";
+import LoginPage from "./pages/LoginPage";
+import SignUpPage from "./pages/SignUpPage";
+
+// Everything else is split out. Before this, opening the landing page
+// downloaded the whole product - admin screens, the video call SDK, the chat
+// socket - in one chunk, none of which a signed-out visitor can even reach.
+//
+// The guards stay eager and stay exactly where they were: a lazy page is still
+// rendered inside ProtectedRoute/AdminRoute, so splitting changes when the code
+// arrives, never who is allowed to see it.
+const TwoFactorPage = lazy(() => import("./pages/TwoFactorPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const TermsPage = lazy(() => import("./pages/TermsPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const RefundPolicyPage = lazy(() => import("./pages/RefundPolicyPage"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
+const TeachersPage = lazy(() => import("./pages/TeachersPage"));
+const TeacherProfilePage = lazy(() => import("./pages/TeacherProfilePage"));
+const LearnSkillPage = lazy(() => import("./pages/LearnSkillPage"));
+
+const DashboardLayout = lazy(() => import("./layouts/DashboardLayout"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const ViewProfilePage = lazy(() => import("./pages/ViewProfilePage"));
+const ChatPage = lazy(() => import("./pages/ChatPage"));
+const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
+const SupportPage = lazy(() => import("./pages/SupportPage"));
+const CreditsPage = lazy(() => import("./pages/CreditsPage"));
+const PurchaseHistory = lazy(() => import("./pages/PurchaseHistory"));
+const CreditsSuccess = lazy(() => import("./pages/CreditsSuccess"));
+const CreditsCancelled = lazy(() => import("./pages/CreditsCancelled"));
+const SessionHistory = lazy(() => import("./pages/SessionHistory"));
+const VideoCallPage = lazy(() => import("./pages/VideoCallPage"));
+
+const AdminTransactions = lazy(() => import("./pages/AdminTransactions"));
+const AdminUsers = lazy(() => import("./pages/AdminUsers"));
+const AdminAuditLog = lazy(() => import("./pages/AdminAuditLog"));
+const AdminVerifications = lazy(() => import("./pages/AdminVerifications"));
+const AdminRefunds = lazy(() => import("./pages/AdminRefunds"));
+const AdminPayouts = lazy(() => import("./pages/AdminPayouts"));
+const AdminReports = lazy(() => import("./pages/AdminReports"));
+const AdminSessionDisputes = lazy(() => import("./pages/AdminSessionDisputes"));
+
 const router = createBrowserRouter([
   {
     element: <RootLayout />,
+    // Catches a chunk that 404s because a new deploy replaced it mid-session.
+    errorElement: <RouteErrorBoundary />,
     children: [
     {
       path: "/",

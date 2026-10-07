@@ -7,4 +7,31 @@ export default defineConfig({
   server: {
     host: 'localhost', // Ensures the server binds to localhost for Facebook OAuth
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Libraries that change only when we upgrade them are split away from
+        // our own code, which changes on every deploy. A returning visitor then
+        // re-downloads the app chunk and keeps React and friends from cache.
+        //
+        // Only these three groups are named. Anything else is left to Rollup,
+        // which already places a dependency into whichever route chunk needs it
+        // - a hand-written list would just drag rarely-used libraries back into
+        // everyone's first load.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+
+          // react-router pulls in its own copy of history/remix internals; it
+          // is matched before react so those don't land in the react chunk.
+          if (id.includes('react-router')) return 'vendor-router';
+          if (/node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'vendor-react';
+          if (/node_modules[\\/](@reduxjs[\\/]toolkit|react-redux|redux|immer|reselect)[\\/]/.test(id)) {
+            return 'vendor-redux';
+          }
+
+          return undefined;
+        },
+      },
+    },
+  },
 })

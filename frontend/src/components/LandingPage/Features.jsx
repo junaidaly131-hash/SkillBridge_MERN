@@ -13,7 +13,10 @@ function Features() {
       icon: "/assets/features/3.svg",
     },
     {
-      title: "Global Community",
+      // Was "Global Community". Every user, every teacher and the payment
+      // provider are in Pakistan, and the rest of the site says so - a claim
+      // the product doesn't meet doesn't belong on the front page.
+      title: "Learners Across Pakistan",
       icon: "/assets/features/4.svg",
     },
     {
