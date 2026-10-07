@@ -84,7 +84,7 @@ function TwoSides() {
 
                 <Link
                   to={side.cta.to}
-                  className="text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg hover:bg-teal-button-hover transition-all self-start"
+                  className="text-sm font-semibold text-white bg-[#227E73] px-6 py-2.5 rounded-lg hover:bg-[#1C6A61] hover:text-white transition-all self-start"
                 >
                   {side.cta.label}
                 </Link>

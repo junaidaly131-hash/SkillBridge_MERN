@@ -11,7 +11,7 @@ function Button({ children, variant = "primary", onClick, className = "" }) {
   // measures 3.04:1, which fails WCAG AA for normal text; dark text on that
   // same tint is 13.35:1.
   const variants = {
-    primary: "bg-teal-button text-white hover:bg-teal-button-hover",
+    primary: "bg-[#227E73] text-white hover:bg-[#1C6A61] hover:text-white",
     // Had both hover:text-teal and hover:text-white - whichever came last in
     // the string silently won.
     secondary: "text-black sm:text-[700] border-2 border-[#D0D0D0] hover:bg-light-teal hover:border-teal",
