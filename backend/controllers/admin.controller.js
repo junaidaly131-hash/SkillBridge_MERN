@@ -59,6 +59,17 @@ export const getAllTransactions = async (req, res) => {
             failedCount: {
               $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] },
             },
+            // A 'pending' row is a checkout that was opened and walked away
+            // from - the Transaction is created before the buyer ever reaches
+            // Safepay's page. Counting those among the rest made the headline
+            // number look like activity that never happened, and dragged the
+            // success rate down with attempts that never concluded either way.
+            pendingCount: {
+              $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] },
+            },
+            refundedCount: {
+              $sum: { $cond: [{ $eq: ['$status', 'refunded'] }, 1, 0] },
+            },
           },
         },
       ]),
@@ -69,6 +80,8 @@ export const getAllTransactions = async (req, res) => {
       totalTransactions: 0,
       completedCount: 0,
       failedCount: 0,
+      pendingCount: 0,
+      refundedCount: 0,
     };
 
     res.json({
@@ -77,6 +90,11 @@ export const getAllTransactions = async (req, res) => {
         totalTransactions: stats.totalTransactions,
         completedCount: stats.completedCount,
         failedCount: stats.failedCount,
+        pendingCount: stats.pendingCount,
+        refundedCount: stats.refundedCount,
+        // Everything that reached an outcome, either way. This is the honest
+        // denominator for a success rate; totalTransactions is not.
+        settledCount: stats.totalTransactions - stats.pendingCount,
         currency: 'PKR',
       },
       transactions: transactions.map((t) => ({

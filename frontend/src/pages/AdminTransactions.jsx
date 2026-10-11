@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Banknote, Receipt, CheckCircle2 } from "lucide-react";
+import { Banknote, Receipt, CheckCircle2, Clock } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -121,10 +121,13 @@ function AdminTransactions() {
         .map(([status, count]) => ({ status, count }))
     : [];
 
+  // Of the attempts that actually reached an outcome. Dividing by every row
+  // counted abandoned checkouts as failures, so one completed purchase among
+  // five people who clicked Buy and closed the tab read as a 17% success rate
+  // when nothing had actually failed.
+  const settled = stats?.settledCount ?? 0;
   const successRate =
-    stats && stats.totalTransactions > 0
-      ? Math.round((stats.completedCount / stats.totalTransactions) * 100)
-      : 0;
+    settled > 0 ? Math.round((stats.completedCount / settled) * 100) : 0;
 
   const summaryCards = [
     {
@@ -135,15 +138,27 @@ function AdminTransactions() {
       iconColor: "text-teal",
     },
     {
-      title: "Total Transactions",
-      value: stats ? stats.totalTransactions : "-",
+      // Completed purchases, not every row. A pending row is money that never
+      // arrived, and putting it in the headline count made the platform look
+      // busier than it was.
+      title: "Completed",
+      value: stats ? stats.completedCount : "-",
       icon: Receipt,
       iconBg: "bg-orange-100",
       iconColor: "text-orange-500",
     },
     {
+      title: "Awaiting Payment",
+      value: stats ? stats.pendingCount : "-",
+      subtitle: "Checkouts started but not paid",
+      icon: Clock,
+      iconBg: "bg-amber-100",
+      iconColor: "text-amber-600",
+    },
+    {
       title: "Success Rate",
       value: stats ? `${successRate}%` : "-",
+      subtitle: settled > 0 ? `of ${settled} completed attempt${settled === 1 ? "" : "s"}` : null,
       icon: CheckCircle2,
       iconBg: "bg-purple-100",
       iconColor: "text-purple-500",
@@ -161,7 +176,7 @@ function AdminTransactions() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {summaryCards.map((card) => {
           const Icon = card.icon;
           return (
@@ -173,7 +188,14 @@ function AdminTransactions() {
               {loading ? (
                 <div className="h-9 w-20 bg-gray-200 rounded animate-pulse" />
               ) : (
-                <p className="font-family-poppins text-3xl font-bold text-black">{card.value}</p>
+                <>
+                  <p className="font-family-poppins text-3xl font-bold text-black">{card.value}</p>
+                  {/* Says what the number counts, where the title alone would
+                      leave it to be guessed at. */}
+                  {card.subtitle && (
+                    <p className="font-family-poppins text-xs text-gray mt-1">{card.subtitle}</p>
+                  )}
+                </>
               )}
             </div>
           );
