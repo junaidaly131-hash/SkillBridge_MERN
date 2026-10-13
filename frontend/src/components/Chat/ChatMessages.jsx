@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Phone, MoreVertical, Send, Smile, ArrowLeft, Trash2, CalendarPlus, Paperclip, FileText, Download, Loader2, MessageCircle, Wallet, Flag, Ban, ShieldCheck, Check, CheckCheck, Video, Pencil, SmilePlus, Archive, ArchiveRestore, ChevronDown, Copy, X as XIcon } from "lucide-react";
+import { Phone, MoreVertical, Send, Smile, ArrowLeft, Trash2, CalendarPlus, Paperclip, FileText, Download, Loader2, MessageCircle, Wallet, Flag, Ban, ShieldCheck, Check, CheckCheck, Video, Pencil, SmilePlus, Archive, ArchiveRestore, ChevronDown, Copy, Trash, X as XIcon } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
@@ -13,6 +13,7 @@ import {
   setConversationArchived,
   editMessage,
   toggleReaction,
+  deleteMessage,
 } from "../../store/chatSlice";
 import { fetchMeetings, respondToMeeting } from "../../store/meetingsSlice";
 import { blockUser, unblockUser, reportUser } from "../../store/profileSlice";
@@ -179,6 +180,8 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
   // edge and ends up hidden behind the chat header, unreachable.
   const [menuDropsDown, setMenuDropsDown] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  // The message queued for deletion, awaiting a choice of scope.
+  const [deletingMsg, setDeletingMsg] = useState(null);
 
   const otherUserId = chat?.otherUserId;
   const isBlocked = Boolean(
@@ -353,6 +356,17 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
     }
   };
 
+  const handleDeleteMessage = async (scope) => {
+    const target = deletingMsg;
+    setDeletingMsg(null);
+    if (!target) return;
+    try {
+      await dispatch(deleteMessage({ conversationId, messageId: target._id, scope })).unwrap();
+    } catch (err) {
+      toast.error(err || "Couldn't delete that message");
+    }
+  };
+
   const handleSaveEdit = async () => {
     const text = editText.trim();
     if (!text || !editingId) return;
@@ -446,8 +460,17 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
         isAttachment: m.messageType === "attachment",
         attachment: m.messageType === "attachment" ? m.metadata : null,
         editedAt: m.editedAt || null,
+        isDeleted: Boolean(m.deletedForEveryoneAt),
+        // Withdrawing a message for both sides is held to the same window as
+        // editing it - past that you can still remove it from your own view.
+        canDeleteForEveryone:
+          isOwn &&
+          !m.deletedForEveryoneAt &&
+          !String(m._id).startsWith("tmp-") &&
+          now - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS,
         canEdit:
           isOwn &&
+          !m.deletedForEveryoneAt &&
           (m.messageType || "text") === "text" &&
           !String(m._id).startsWith("tmp-") &&
           now - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS,
@@ -835,6 +858,15 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
                     <Download className="text-gray shrink-0" size={16} />
                   </a>
                 )
+              ) : msg.isDeleted ? (
+                <p
+                  className={`font-family-poppins text-sm italic flex items-center gap-1.5 ${
+                    msg.isOwn ? "text-white/80" : "text-gray"
+                  }`}
+                >
+                  <Ban size={14} />
+                  This message was deleted
+                </p>
               ) : (
                 <p className="font-family-poppins text-sm whitespace-pre-wrap">{linkifyText(msg.text)}</p>
               )}
@@ -981,19 +1013,21 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
                 {/* Reacting keeps its own button - it is the one thing people
                     do often enough that burying it behind a menu costs a click
                     every time. The chevron holds the rest. */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    setMenuForId(null);
-                    if (reactingToId !== msg._id) setMenuDropsDown(shouldDropDown(e.currentTarget));
-                    setReactingToId(reactingToId === msg._id ? null : msg._id);
-                  }}
-                  aria-label="React to message"
-                  className="p-1 rounded-full text-gray hover:text-black hover:bg-gray-100"
-                >
-                  <SmilePlus size={15} />
-                </button>
-                {(msg.canEdit || !msg.isAttachment) && (
+                {!msg.isDeleted && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      setMenuForId(null);
+                      if (reactingToId !== msg._id) setMenuDropsDown(shouldDropDown(e.currentTarget));
+                      setReactingToId(reactingToId === msg._id ? null : msg._id);
+                    }}
+                    aria-label="React to message"
+                    className="p-1 rounded-full text-gray hover:text-black hover:bg-gray-100"
+                  >
+                    <SmilePlus size={15} />
+                  </button>
+                )}
+                {
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1006,7 +1040,7 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
                   >
                     <ChevronDown size={16} />
                   </button>
-                )}
+                }
 
                 {menuForId === msg._id && (
                   <div
@@ -1027,7 +1061,7 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
                         Edit
                       </button>
                     )}
-                    {!msg.isAttachment && (
+                    {!msg.isAttachment && !msg.isDeleted && (
                       <button
                         type="button"
                         onClick={() => handleCopy(msg.text)}
@@ -1037,6 +1071,17 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
                         Copy
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuForId(null);
+                        setDeletingMsg(msg);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-family-poppins"
+                    >
+                      <Trash size={15} />
+                      Delete
+                    </button>
                   </div>
                 )}
 
@@ -1213,6 +1258,47 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
                 ) : (
                   <Check className="text-white" size={18} />
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deleting a message asks which copy to remove. Two buttons rather than
+          a confirm-then-choose, because "delete for me" and "delete for
+          everyone" are different actions, not degrees of the same one. */}
+      {deletingMsg && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDeletingMsg(null)} />
+          <div className="relative bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="font-family-poppins text-lg font-semibold text-black mb-2">
+              Delete message
+            </h3>
+            <p className="font-family-poppins text-sm text-gray mb-5">
+              {deletingMsg.canDeleteForEveryone
+                ? "Remove it from this chat for both of you, or just hide it from your own view."
+                : `This removes it from your view only — ${chat?.name || "the other person"} keeps their copy.`}
+            </p>
+            <div className="flex flex-col gap-2">
+              {deletingMsg.canDeleteForEveryone && (
+                <button
+                  onClick={() => handleDeleteMessage("everyone")}
+                  className="w-full px-4 py-2.5 text-sm font-family-poppins font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all"
+                >
+                  Delete for everyone
+                </button>
+              )}
+              <button
+                onClick={() => handleDeleteMessage("me")}
+                className="w-full px-4 py-2.5 text-sm font-family-poppins font-semibold text-black border border-[#E5E5E5] hover:bg-gray-50 rounded-lg transition-all"
+              >
+                Delete for me
+              </button>
+              <button
+                onClick={() => setDeletingMsg(null)}
+                className="w-full px-4 py-2 text-sm font-family-poppins text-gray hover:bg-gray-100 rounded-lg transition-all"
+              >
+                Cancel
               </button>
             </div>
           </div>

@@ -104,6 +104,18 @@ export const editMessage = createAsyncThunk(
   }
 );
 
+export const deleteMessage = createAsyncThunk(
+  'chat/deleteMessage',
+  async ({ conversationId, messageId, scope }, { rejectWithValue }) => {
+    try {
+      const res = await apiClient.delete(`/chat/messages/${messageId}?scope=${scope}`);
+      return { conversationId, messageId, scope, message: res.data.message || null };
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to delete message');
+    }
+  }
+);
+
 export const toggleReaction = createAsyncThunk(
   'chat/toggleReaction',
   async ({ conversationId, messageId, emoji }, { rejectWithValue }) => {
@@ -354,6 +366,26 @@ const chatSlice = createSlice({
         chatSlice.caseReducers.applyMessageUpdate(state, action);
       })
       .addCase(toggleReaction.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+      // Deleting for yourself drops the bubble; deleting for everyone leaves a
+      // tombstone, which arrives as an ordinary message update.
+      .addCase(deleteMessage.fulfilled, (state, action) => {
+        const { conversationId, messageId, scope, message } = action.payload;
+        if (scope === 'me') {
+          const list = state.messagesByConversation[conversationId];
+          if (list) {
+            state.messagesByConversation[conversationId] = list.filter(
+              (m) => String(m._id) !== String(messageId)
+            );
+          }
+        } else if (message) {
+          chatSlice.caseReducers.applyMessageUpdate(state, {
+            payload: { conversationId, message },
+          });
+        }
+      })
+      .addCase(deleteMessage.rejected, (state, action) => {
         state.error = action.payload;
       });
   },

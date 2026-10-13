@@ -19,7 +19,7 @@ router.get('/conversations', authenticateToken, async (req, res) => {
       .populate('participants', 'name email avatar lastSeen acceptsFreeTrialSessions')
       .populate({
         path: 'lastMessage',
-        select: 'text sender createdAt readBy messageType metadata',
+        select: 'text sender createdAt readBy messageType metadata deletedForEveryoneAt',
         populate: { path: 'sender', select: 'name' },
       })
       .sort({ updatedAt: -1 });
@@ -129,6 +129,9 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res) =>
     const messages = await Message.find({
       conversation: conversation._id,
       ...(clearedAt ? { createdAt: { $gt: clearedAt } } : {}),
+      // Deleted-for-me messages still exist for the other participant; they
+      // are simply never sent to the person who removed them.
+      deletedFor: { $ne: userId },
     })
       .populate('sender', 'name email avatar')
       .populate('reactions.user', 'name')
@@ -368,9 +371,13 @@ async function loadMessageForParticipant(messageId, userId) {
   }
 
   // Someone who cleared the chat should not be able to reach back past their
-  // own cut-off and react to - or read - a message they no longer have.
+  // own cut-off and react to - or read - a message they no longer have. The
+  // same goes for one they deleted for themselves.
   const clearedAt = conversation.clearedAtFor(userId);
   if (clearedAt && message.createdAt <= clearedAt) {
+    return { error: { status: 404, message: 'Message not found' } };
+  }
+  if (message.deletedFor.some((u) => String(u) === String(userId))) {
     return { error: { status: 404, message: 'Message not found' } };
   }
 
@@ -415,6 +422,9 @@ router.patch('/messages/:id', authenticateToken, async (req, res) => {
     if (message.messageType !== 'text') {
       return res.status(400).json({ message: 'Only text messages can be edited.' });
     }
+    if (message.deletedForEveryoneAt) {
+      return res.status(400).json({ message: 'This message was deleted.' });
+    }
     if (Date.now() - message.createdAt.getTime() > EDIT_WINDOW_MS) {
       return res.status(400).json({
         message: `Messages can only be edited within ${Math.round(EDIT_WINDOW_MS / 60000)} minutes of sending.`,
@@ -445,6 +455,69 @@ router.patch('/messages/:id', authenticateToken, async (req, res) => {
 });
 
 /**
+ * Delete a message, for yourself or for both of you.
+ *
+ *   scope=me        - any message in the conversation; it simply stops being
+ *                     shown to you, exactly like clearing a chat.
+ *   scope=everyone  - your own, inside the edit window. The message becomes a
+ *                     tombstone both sides can see rather than disappearing,
+ *                     because a message vanishing from the middle of a thread
+ *                     reads as something having gone wrong.
+ */
+router.delete('/messages/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const scope = req.query.scope === 'everyone' ? 'everyone' : 'me';
+
+    const { message, conversation, error } = await loadMessageForParticipant(req.params.id, userId);
+    if (error) return res.status(error.status).json({ message: error.message });
+
+    if (scope === 'me') {
+      if (!message.deletedFor.some((u) => String(u) === String(userId))) {
+        message.deletedFor.push(userId);
+        await message.save();
+      }
+      // Nobody else's view changed, so nothing is broadcast.
+      return res.json({ success: true, scope, messageId: String(message._id) });
+    }
+
+    if (String(message.sender) !== String(userId)) {
+      return res.status(403).json({ message: 'You can only delete your own messages for everyone.' });
+    }
+    if (message.deletedForEveryoneAt) {
+      return res.json({ success: true, scope, messageId: String(message._id) });
+    }
+    if (Date.now() - message.createdAt.getTime() > EDIT_WINDOW_MS) {
+      return res.status(400).json({
+        message: `Messages can only be deleted for everyone within ${Math.round(EDIT_WINDOW_MS / 60000)} minutes of sending. You can still delete it for yourself.`,
+      });
+    }
+
+    // Everything the message carried goes, not just the text - an attachment
+    // left in metadata would still be downloadable from the bubble.
+    message.deletedForEveryoneAt = new Date();
+    message.text = '';
+    message.metadata = null;
+    message.reactions = [];
+    message.editedAt = null;
+    await message.save();
+
+    const populated = await Message.findById(message._id).populate('sender', 'name email avatar');
+
+    broadcastMessage(req, conversation, 'messageUpdated', { message: populated });
+    if (String(conversation.lastMessage) === String(message._id)) {
+      broadcastMessage(req, conversation, 'conversationPreviewChanged', {
+        conversationId: String(conversation._id),
+      });
+    }
+
+    res.json({ success: true, scope, message: populated });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+/**
  * Set this user's reaction on a message.
  *
  * One per person: picking a different emoji replaces whatever you had, and
@@ -463,6 +536,10 @@ router.post('/messages/:id/reactions', authenticateToken, async (req, res) => {
 
     const { message, conversation, error } = await loadMessageForParticipant(req.params.id, userId);
     if (error) return res.status(error.status).json({ message: error.message });
+
+    if (message.deletedForEveryoneAt) {
+      return res.status(400).json({ message: 'This message was deleted.' });
+    }
 
     const mine = message.reactions.find((r) => String(r.user) === String(userId));
     const wasSameEmoji = mine?.emoji === emoji;

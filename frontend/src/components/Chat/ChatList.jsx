@@ -24,9 +24,13 @@ function ChatList({ selectedChat, onSelectChat, onToggleMobile }) {
     const meId = user?.id;
     return (conversations || []).map((c) => {
       const other = (c.participants || []).find((p) => String(p._id || p.id) !== String(meId));
-      const lastText = c.lastMessage?.messageType === "attachment"
-        ? `📎 ${c.lastMessage?.metadata?.fileName || "Attachment"}`
-        : c.lastMessage?.text || "";
+      // A withdrawn message has no text left, so without this the row's preview
+      // would just go blank and look like the chat had emptied itself.
+      const lastText = c.lastMessage?.deletedForEveryoneAt
+        ? "This message was deleted"
+        : c.lastMessage?.messageType === "attachment"
+          ? `📎 ${c.lastMessage?.metadata?.fileName || "Attachment"}`
+          : c.lastMessage?.text || "";
       const ts = c.lastMessage?.createdAt || c.updatedAt;
       const time = ts ? new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
       return {

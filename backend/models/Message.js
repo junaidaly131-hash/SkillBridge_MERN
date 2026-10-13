@@ -45,6 +45,23 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // "Delete for me": the message stays, these people just stop being shown
+    // it. Same idea as a conversation's clearedBy - one person tidying their
+    // own view must never take the other person's copy with it.
+    deletedFor: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    // "Delete for everyone": the message is kept as a tombstone rather than
+    // removed, so the thread does not silently reshuffle around a gap and the
+    // other person can see that something was withdrawn rather than wondering
+    // what they misread. Its text and attachment are cleared on the way.
+    deletedForEveryoneAt: {
+      type: Date,
+      default: null,
+    },
     // At most one entry per user. Choosing a different emoji replaces theirs,
     // choosing the same one again clears it - so the chips under a message are
     // a count of people, not of taps.
