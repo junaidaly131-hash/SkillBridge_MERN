@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { Search, Menu, Archive, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Search, Menu, Archive, ArchiveRestore, ArrowLeft, ChevronDown, Trash2 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchConversations } from "../../store/chatSlice";
+import { fetchConversations, setConversationArchived, deleteConversation } from "../../store/chatSlice";
+import { useToast } from "../../ui/Toast";
 import ChatListSkeleton from "./ChatListSkeleton";
 
 function ChatList({ selectedChat, onSelectChat, onToggleMobile }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  // Conversation awaiting a delete confirmation, if any.
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const toast = useToast();
   const dispatch = useDispatch();
   const { conversations, loading, typingByConversation } = useSelector((state) => state.chat);
   const { user } = useSelector((state) => state.auth);
@@ -50,6 +54,106 @@ function ChatList({ selectedChat, onSelectChat, onToggleMobile }) {
   // chat is listed and never about silencing it.
   const archivedUnread = archivedConversations.reduce((n, c) => n + c.unread, 0);
 
+  const handleArchive = async (conv) => {
+    try {
+      await dispatch(
+        setConversationArchived({ conversationId: conv._id, archived: !conv.archived })
+      ).unwrap();
+      toast.success(conv.archived ? "Moved back to your inbox." : "Chat archived.");
+      dispatch(fetchConversations());
+    } catch (err) {
+      toast.error(err || "Couldn't update this chat");
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    const conv = pendingDelete;
+    setPendingDelete(null);
+    if (!conv) return;
+    try {
+      await dispatch(deleteConversation(conv._id)).unwrap();
+      // Deleting the chat that is currently open leaves the thread pane showing
+      // a conversation the user no longer has.
+      if (selectedChat?._id === conv._id) onSelectChat(null);
+    } catch (err) {
+      toast.error(err || "Couldn't delete this chat");
+    }
+  };
+
+  const rowProps = {
+    onSelect: onSelectChat,
+    onArchive: handleArchive,
+    onDelete: setPendingDelete,
+  };
+
+  // Shown over whichever list is on screen.
+  const deleteConfirm = pendingDelete && (
+    <div className="fixed inset-0 z-70 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={() => setPendingDelete(null)} />
+      <div className="relative bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
+        <h3 className="font-family-poppins text-lg font-semibold text-black mb-2">Delete chat</h3>
+        <p className="font-family-poppins text-sm text-gray mb-4">
+          This clears the chat for you only — {pendingDelete.name} keeps their copy. If they
+          message you again, the chat comes back with the new messages.
+        </p>
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={() => setPendingDelete(null)}
+            className="px-4 py-2 text-sm font-family-poppins text-gray hover:bg-gray-100 rounded-lg transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirmDelete}
+            className="px-4 py-2 text-sm font-family-poppins text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Archived is its own screen, not a section that unfolds inside the inbox.
+  // Expanding it in place pushed the inbox around and left two lists of chats
+  // competing for the same column; replacing the panel keeps one list on screen
+  // at a time, which is what the back arrow is for.
+  if (showArchived) {
+    return (
+      <div className="w-full md:w-80 bg-white border-r border-[#E5E5E5] flex flex-col h-full">
+        <div className="p-4 border-b border-[#E5E5E5] flex items-center gap-3">
+          <button
+            onClick={() => setShowArchived(false)}
+            className="p-2 -ml-2 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Back to chats"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <h2 className="font-family-poppins text-base font-semibold text-black">Archived</h2>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {archivedConversations.length === 0 ? (
+            <p className="font-family-poppins text-xs text-gray text-center py-8 px-4">
+              No archived chats.
+            </p>
+          ) : (
+            archivedConversations.map((conv) => (
+              <ConversationRow
+                key={conv._id}
+                conv={conv}
+                isSelected={selectedChat?._id === conv._id}
+                isOnline={onlineUserIds.includes(String(conv.otherUserId))}
+                {...rowProps}
+              />
+            ))
+          )}
+        </div>
+        {deleteConfirm}
+      </div>
+    );
+  }
+
   return (
     <div className="w-full md:w-80 bg-white border-r border-[#E5E5E5] flex flex-col h-full">
       {/* Header */}
@@ -89,62 +193,70 @@ function ChatList({ selectedChat, onSelectChat, onToggleMobile }) {
               </p>
             )}
 
+            {/* Pinned above the chats, the way WhatsApp does it - a way in,
+                not a section that grows the list it sits under. */}
+            {archivedConversations.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowArchived(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 border-b border-[#E5E5E5] text-left hover:bg-gray-50 transition-colors"
+              >
+                <Archive className="text-gray shrink-0" size={18} />
+                <span className="font-family-poppins text-sm text-black flex-1">Archived</span>
+                {archivedUnread > 0 ? (
+                  <span className="min-w-5 h-5 px-1.5 bg-teal-button text-white text-xs rounded-full flex items-center justify-center shrink-0">
+                    {archivedUnread}
+                  </span>
+                ) : (
+                  <span className="font-family-poppins text-xs text-gray shrink-0">
+                    {archivedConversations.length}
+                  </span>
+                )}
+              </button>
+            )}
+
             {inboxConversations.map((conv) => (
               <ConversationRow
                 key={conv._id}
                 conv={conv}
                 isSelected={selectedChat?._id === conv._id}
                 isOnline={onlineUserIds.includes(String(conv.otherUserId))}
-                onSelect={onSelectChat}
+                {...rowProps}
               />
             ))}
-
-            {archivedConversations.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setShowArchived((v) => !v)}
-                  className="w-full flex items-center gap-2 px-4 py-3 border-t border-[#E5E5E5] text-left hover:bg-gray-50 transition-colors"
-                >
-                  <Archive className="text-gray shrink-0" size={16} />
-                  <span className="font-family-poppins text-xs font-medium text-gray flex-1">
-                    Archived ({archivedConversations.length})
-                  </span>
-                  {archivedUnread > 0 && (
-                    <span className="min-w-5 h-5 px-1.5 bg-teal-button text-white text-xs rounded-full flex items-center justify-center shrink-0">
-                      {archivedUnread}
-                    </span>
-                  )}
-                  <ChevronDown
-                    className={`text-gray shrink-0 transition-transform ${showArchived ? "rotate-180" : ""}`}
-                    size={16}
-                  />
-                </button>
-
-                {showArchived &&
-                  archivedConversations.map((conv) => (
-                    <ConversationRow
-                      key={conv._id}
-                      conv={conv}
-                      isSelected={selectedChat?._id === conv._id}
-                      isOnline={onlineUserIds.includes(String(conv.otherUserId))}
-                      onSelect={onSelectChat}
-                    />
-                  ))}
-              </>
-            )}
           </>
         )}
       </div>
+      {deleteConfirm}
     </div>
   );
 }
 
-function ConversationRow({ conv, isSelected, isOnline, onSelect }) {
+function ConversationRow({ conv, isSelected, isOnline, onSelect, onArchive, onDelete }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [menuOpen]);
+
+  // Every handler here stops propagation: the whole row is the button that
+  // opens the chat, so without it archiving would also switch to that chat.
+  const act = (fn) => (e) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    fn();
+  };
+
   return (
     <div
       onClick={() => onSelect(conv)}
-      className={`flex items-center gap-3 p-4 cursor-pointer transition-all ${
+      className={`group relative flex items-center gap-3 p-4 cursor-pointer transition-all ${
         isSelected ? "bg-light-teal" : "hover:bg-gray-50"
       }`}
     >
@@ -194,6 +306,45 @@ function ConversationRow({ conv, isSelected, isOnline, onSelect }) {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Row actions. On a phone there is no hover to reveal them, so they stay
+          visible there; on a pointer device they appear with the row. */}
+      <div className="relative shrink-0" ref={menuRef}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((v) => !v);
+          }}
+          aria-label={`Options for ${conv.name}`}
+          className={`p-1 rounded-full text-gray hover:text-black hover:bg-gray-200 transition-all ${
+            menuOpen ? "opacity-100" : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
+          }`}
+        >
+          <ChevronDown size={16} />
+        </button>
+
+        {menuOpen && (
+          <div className="absolute right-0 top-full mt-1 z-30 min-w-40 bg-white border border-[#E5E5E5] rounded-lg shadow-lg py-1">
+            <button
+              type="button"
+              onClick={act(() => onArchive(conv))}
+              className="w-full px-3 py-2 text-left text-sm text-black hover:bg-gray-50 flex items-center gap-2 font-family-poppins"
+            >
+              {conv.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+              {conv.archived ? "Move to inbox" : "Archive chat"}
+            </button>
+            <button
+              type="button"
+              onClick={act(() => onDelete(conv))}
+              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-family-poppins"
+            >
+              <Trash2 size={15} />
+              Delete chat
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

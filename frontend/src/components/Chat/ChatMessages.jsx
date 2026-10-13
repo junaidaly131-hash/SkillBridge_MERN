@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Phone, MoreVertical, Send, Smile, ArrowLeft, Trash2, CalendarPlus, Paperclip, FileText, Download, Loader2, MessageCircle, Wallet, Flag, Ban, ShieldCheck, Check, CheckCheck, Video, Pencil, SmilePlus, Archive, ArchiveRestore, X as XIcon } from "lucide-react";
+import { Phone, MoreVertical, Send, Smile, ArrowLeft, Trash2, CalendarPlus, Paperclip, FileText, Download, Loader2, MessageCircle, Wallet, Flag, Ban, ShieldCheck, Check, CheckCheck, Video, Pencil, SmilePlus, Archive, ArchiveRestore, ChevronDown, Copy, X as XIcon } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
@@ -34,6 +34,8 @@ const TYPING_IDLE_MS = 1500;
 // At most one `typing` emit per this interval, so holding a key down doesn't
 // turn every character into a socket round trip.
 const TYPING_THROTTLE_MS = 2000;
+// Space a message-actions menu needs above its chevron to open upward.
+const MENU_CLEARANCE = 150;
 // Treat the view as "at the bottom" within this many pixels, so a few px of
 // sub-pixel drift doesn't read as the user having scrolled up.
 const NEAR_BOTTOM_PX = 120;
@@ -148,6 +150,7 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
   const menuRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const reactionPickerRef = useRef(null);
+  const messageMenuRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesScrollRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -168,6 +171,14 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
   const [editText, setEditText] = useState("");
   // Which message has its reaction picker open, if any.
   const [reactingToId, setReactingToId] = useState(null);
+  // Which message has its action menu open.
+  const [menuForId, setMenuForId] = useState(null);
+  // Whether that menu (and the emoji row) drops up or down. Decided per open:
+  // both are absolutely positioned inside the scrolling message list, so one
+  // that opens upward from a message near the top is clipped by the list's own
+  // edge and ends up hidden behind the chat header, unreachable.
+  const [menuDropsDown, setMenuDropsDown] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const otherUserId = chat?.otherUserId;
   const isBlocked = Boolean(
@@ -227,6 +238,7 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
   useEffect(() => {
     setEditingId(null);
     setReactingToId(null);
+    setMenuForId(null);
   }, [conversationId]);
 
   useEffect(() => {
@@ -321,6 +333,26 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
     setReactingToId(null);
   };
 
+  // True when there isn't room to open upward inside the scrolling list.
+  // MENU_CLEARANCE covers the tallest panel (React + Edit + Copy).
+  const shouldDropDown = (anchorEl) => {
+    const list = messagesScrollRef.current;
+    if (!list || !anchorEl) return false;
+    return anchorEl.getBoundingClientRect().top - list.getBoundingClientRect().top < MENU_CLEARANCE;
+  };
+
+  const handleCopy = async (text) => {
+    setMenuForId(null);
+    try {
+      await navigator.clipboard.writeText(text || "");
+      toast.success("Copied.");
+    } catch {
+      // navigator.clipboard is unavailable on an insecure origin and can be
+      // blocked by permissions, so this is a real path, not a theoretical one.
+      toast.error("Couldn't copy that.");
+    }
+  };
+
   const handleSaveEdit = async () => {
     const text = editText.trim();
     if (!text || !editingId) return;
@@ -333,11 +365,14 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
       return;
     }
 
+    setIsSavingEdit(true);
     try {
       await dispatch(editMessage({ conversationId, messageId: editingId, text })).unwrap();
       setEditingId(null);
     } catch (err) {
       toast.error(err || "Couldn't edit that message");
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -605,6 +640,9 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
       if (reactionPickerRef.current && !reactionPickerRef.current.parentElement?.contains(event.target)) {
         setReactingToId(null);
       }
+      if (messageMenuRef.current && !messageMenuRef.current.contains(event.target)) {
+        setMenuForId(null);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -797,44 +835,6 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
                     <Download className="text-gray shrink-0" size={16} />
                   </a>
                 )
-              ) : editingId === msg._id ? (
-                <div className="flex flex-col gap-2 min-w-50">
-                  <textarea
-                    value={editText}
-                    autoFocus
-                    rows={2}
-                    onChange={(e) => setEditText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSaveEdit();
-                      }
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                    className={`w-full rounded-lg px-2 py-1.5 font-family-poppins text-sm outline-none resize-none ${
-                      msg.isOwn ? "bg-white/20 text-white placeholder-white/60" : "bg-light-gray text-black"
-                    }`}
-                  />
-                  <div className="flex items-center gap-2 justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(null)}
-                      className={`font-family-poppins text-xs ${msg.isOwn ? "text-white/80" : "text-gray"}`}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveEdit}
-                      disabled={!editText.trim()}
-                      className={`font-family-poppins text-xs font-semibold disabled:opacity-50 ${
-                        msg.isOwn ? "text-white" : "text-teal"
-                      }`}
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
               ) : (
                 <p className="font-family-poppins text-sm whitespace-pre-wrap">{linkifyText(msg.text)}</p>
               )}
@@ -963,37 +963,89 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
               </div>
             </div>
 
-            {/* Hover actions, outside the bubble so they never cover its text.
-                Always visible on touch, where there is no hover to reveal them. */}
-            {editingId !== msg._id && !String(msg._id).startsWith("tmp-") && (
+            {/* One chevron beside the bubble, the way WhatsApp does it, rather
+                than a row of icons - two bare icons gave no clue what they did
+                and crowded short messages. It opens a labelled menu instead.
+                Always visible on touch, where there is no hover to reveal it. */}
+            {!String(msg._id).startsWith("tmp-") && (
               <div
-                className={`relative flex items-center self-end pb-1 gap-0.5 ${
+                ref={menuForId === msg._id ? messageMenuRef : null}
+                className={`relative flex items-center gap-0.5 self-end pb-1 ${
                   msg.isOwn ? "order-first mr-1" : "ml-1"
-                } opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity`}
+                } ${
+                  menuForId === msg._id || reactingToId === msg._id
+                    ? "opacity-100"
+                    : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                } transition-opacity`}
               >
-                {msg.canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => handleStartEdit(msg)}
-                    aria-label="Edit message"
-                    className="p-1.5 rounded-full text-gray hover:text-black hover:bg-gray-100"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                )}
+                {/* Reacting keeps its own button - it is the one thing people
+                    do often enough that burying it behind a menu costs a click
+                    every time. The chevron holds the rest. */}
                 <button
                   type="button"
-                  onClick={() => setReactingToId(reactingToId === msg._id ? null : msg._id)}
+                  onClick={(e) => {
+                    setMenuForId(null);
+                    if (reactingToId !== msg._id) setMenuDropsDown(shouldDropDown(e.currentTarget));
+                    setReactingToId(reactingToId === msg._id ? null : msg._id);
+                  }}
                   aria-label="React to message"
-                  className="p-1.5 rounded-full text-gray hover:text-black hover:bg-gray-100"
+                  className="p-1 rounded-full text-gray hover:text-black hover:bg-gray-100"
                 >
-                  <SmilePlus size={14} />
+                  <SmilePlus size={15} />
                 </button>
+                {(msg.canEdit || !msg.isAttachment) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      setReactingToId(null);
+                      if (menuForId !== msg._id) setMenuDropsDown(shouldDropDown(e.currentTarget));
+                      setMenuForId(menuForId === msg._id ? null : msg._id);
+                    }}
+                    aria-label="Message actions"
+                    className="p-1 rounded-full text-gray hover:text-black hover:bg-gray-100"
+                  >
+                    <ChevronDown size={16} />
+                  </button>
+                )}
+
+                {menuForId === msg._id && (
+                  <div
+                    className={`absolute z-30 min-w-36 bg-white border border-[#E5E5E5] rounded-lg shadow-lg py-1 ${
+                      menuDropsDown ? "top-full mt-1" : "bottom-full mb-1"
+                    } ${msg.isOwn ? "left-0" : "right-0"}`}
+                  >
+                    {msg.canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuForId(null);
+                          handleStartEdit(msg);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-black hover:bg-gray-50 flex items-center gap-2 font-family-poppins"
+                      >
+                        <Pencil size={15} />
+                        Edit
+                      </button>
+                    )}
+                    {!msg.isAttachment && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(msg.text)}
+                        className="w-full px-3 py-2 text-left text-sm text-black hover:bg-gray-50 flex items-center gap-2 font-family-poppins"
+                      >
+                        <Copy size={15} />
+                        Copy
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {reactingToId === msg._id && (
                   <div
                     ref={reactionPickerRef}
-                    className="absolute bottom-full mb-1 z-20 flex items-center gap-0.5 bg-white border border-[#E5E5E5] rounded-full shadow-lg px-1.5 py-1"
+                    className={`absolute z-30 flex items-center gap-0.5 bg-white border border-[#E5E5E5] rounded-full shadow-lg px-1.5 py-1 ${
+                      menuDropsDown ? "top-full mt-1" : "bottom-full mb-1"
+                    } ${msg.isOwn ? "left-0" : "right-0"}`}
                   >
                     {ALLOWED_REACTIONS.map((emoji) => (
                       <button
@@ -1105,6 +1157,67 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
           </button>
         </div>
       </div>
+
+      {/* Edit, as its own dialog rather than an input inside the bubble. In the
+          bubble the field inherited the bubble's width - so a short message
+          gave you a field too narrow to read what you were correcting - and on
+          an own-message it was white text on teal, which is hard to edit in. */}
+      {editingId && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 modal-overlay-enter" onClick={() => setEditingId(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-xl modal-content-enter">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#E5E5E5]">
+              <button
+                onClick={() => setEditingId(null)}
+                className="p-1.5 -ml-1.5 text-gray hover:text-black hover:bg-gray-100 rounded-lg transition-all"
+                aria-label="Cancel editing"
+              >
+                <XIcon size={20} />
+              </button>
+              <h3 className="font-family-poppins text-base font-semibold text-black">Edit message</h3>
+            </div>
+
+            {/* The message as it stands, so you can see what you are changing. */}
+            <div className="px-4 py-5 bg-light-bg flex justify-end">
+              <div className="max-w-[85%] rounded-2xl rounded-br-sm px-4 py-3 shadow-sm bg-teal-button text-white">
+                <p className="font-family-poppins text-sm whitespace-pre-wrap wrap-break-word">
+                  {editText || " "}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-end gap-2 px-4 py-3 border-t border-[#E5E5E5]">
+              <textarea
+                value={editText}
+                autoFocus
+                rows={1}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSaveEdit();
+                  }
+                  if (e.key === "Escape") setEditingId(null);
+                }}
+                className="flex-1 min-w-0 max-h-32 px-4 py-2.5 bg-light-gray rounded-2xl font-family-poppins text-sm outline-none resize-none"
+              />
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={!editText.trim() || isSavingEdit}
+                aria-label="Save changes"
+                className="shrink-0 p-2.5 bg-teal-button hover:bg-teal-button-hover rounded-full transition-all disabled:opacity-50"
+              >
+                {isSavingEdit ? (
+                  <Loader2 className="text-white animate-spin" size={18} />
+                ) : (
+                  <Check className="text-white" size={18} />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

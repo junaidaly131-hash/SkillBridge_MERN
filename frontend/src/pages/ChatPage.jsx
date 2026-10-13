@@ -173,7 +173,10 @@ function ChatPage() {
 
   const handleSelectChat = (chat) => {
     setSelectedChat(chat);
-    setShowMobileChat(true);
+    // null means "nothing is selected any more" - deleting the open chat from
+    // the list calls this. Opening the thread pane on a phone to show an empty
+    // state would just hide the list they were looking at.
+    setShowMobileChat(Boolean(chat));
   };
 
   const handleBack = () => {
