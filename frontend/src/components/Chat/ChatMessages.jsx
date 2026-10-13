@@ -239,8 +239,20 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
     // Re-joined on every reconnect, not just once: Socket.IO rooms are tied to
     // the socket id, so a dropped connection silently leaves the conversation
     // room and read receipts and typing stop arriving with no sign of it.
+    //
+    // The refetch matters as much as the re-join. Edits and reactions arrive as
+    // one-off `messageUpdated` events with nothing to replay them: anything
+    // that happened while the socket was down is simply never seen, and the
+    // thread sits there showing a message without the reaction somebody left on
+    // it until the page is reloaded. Re-reading the thread on reconnect is the
+    // only thing that closes that window - and it is a real one here, because a
+    // sleeping free-tier backend drops every socket it holds.
+    let first = true;
     const unsubscribeJoin = onConnected(() => {
       socket.emit("joinConversation", { conversationId });
+      // Skipped on the initial connect, where the fetch below already runs.
+      if (first) first = false;
+      else dispatch(fetchMessages(conversationId));
     });
     const onNew = ({ message: msg }) => {
       // The reducer will handle deduplication by ID
