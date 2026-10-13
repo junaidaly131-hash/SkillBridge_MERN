@@ -8,6 +8,7 @@ import {
   getAnalytics,
   getAuditLog,
   getVerifications,
+  getVerificationDoc,
   reviewVerification,
   getRefundRequests,
   reviewRefundRequest,
@@ -30,6 +31,7 @@ router.get('/users', authenticateToken, requireAdmin, getAllUsers);
 router.patch('/users/:userId/role', authenticateToken, requireAdmin, updateUserRole);
 router.get('/audit-log', authenticateToken, requireAdmin, getAuditLog);
 router.get('/verifications', authenticateToken, requireAdmin, getVerifications);
+router.get('/verifications/:userId/docs/:index', authenticateToken, requireAdmin, getVerificationDoc);
 router.patch('/verifications/:userId', authenticateToken, requireAdmin, reviewVerification);
 router.get('/refund-requests', authenticateToken, requireAdmin, getRefundRequests);
 router.patch('/refund-requests/:id', authenticateToken, requireAdmin, reviewRefundRequest);

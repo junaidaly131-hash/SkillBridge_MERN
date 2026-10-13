@@ -22,7 +22,12 @@ function loadPrivateKey() {
 
 // Generates a short-lived, per-participant JWT for one JaaS room.
 // isModerator should be true only for the meeting's organizer.
-export function generateJaasToken({ userId, name, email, isModerator }) {
+// roomName is the bare room name - NOT prefixed with the App ID.
+export function generateJaasToken({ userId, name, email, isModerator, roomName }) {
+  if (!roomName) {
+    throw new Error('generateJaasToken requires roomName');
+  }
+
   const privateKey = loadPrivateKey();
   const appId = process.env.JAAS_APP_ID;
   const kid = process.env.JAAS_API_KEY_ID;
@@ -37,16 +42,26 @@ export function generateJaasToken({ userId, name, email, isModerator }) {
     aud: 'jitsi',
     iss: 'chat',
     sub: appId,
-    // Scoped to '*' (all rooms under this AppID) rather than a specific room name:
-    // 8x8's own JWT docs never document the exact literal-match format expected for a
-    // non-wildcard room claim (checked directly - only the '*' example is confirmed to
-    // work), and getting that format wrong would silently break joins. Access is still
-    // gated per-meeting by our own participant-authorization check before a token is
-    // ever minted, and the token itself is short-lived and tied to one user.
-    room: '*',
+    // Scoped to ONE room. This used to be '*', on the reasoning that our own
+    // participant check gates who gets a token - but that gates minting, not
+    // use. A wildcard token works in every room under the App ID for its full
+    // two hours, so anyone who booked a single session of their own held a key
+    // to every other call on the platform, as moderator if they had created a
+    // meeting (so: able to kick the real participants and end the call).
+    //
+    // The earlier attempt at a literal room name most likely failed because
+    // context.room was missing entirely - see below. The bare room name is
+    // correct here; it is NOT prefixed with the App ID, which goes in `sub`.
+    room: roomName,
     exp: nowSeconds + TOKEN_LIFETIME_SECONDS,
     nbf: nowSeconds - NOT_BEFORE_BUFFER_SECONDS,
     context: {
+      // Required for the room claim above to be compared literally. Without
+      // this block 8x8 may treat `room` as a regex, and a room name containing
+      // regex metacharacters would then match the wrong thing or nothing at all.
+      room: {
+        regex: false,
+      },
       user: {
         id: userId,
         name,

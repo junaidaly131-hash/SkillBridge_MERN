@@ -186,20 +186,23 @@ function AdminVerifications() {
                       )}
                       <div className="flex flex-wrap gap-2 mt-3">
                         {(u.verificationDocs || []).map((doc, i) => {
-                          // Older records stored a bare URL string; newer ones
-                          // carry the type the teacher picked.
-                          const url = typeof doc === "string" ? doc : doc.url;
-                          const label =
-                            typeof doc === "string" ? `Document ${i + 1}` : docTypeLabel(doc.docType);
+                          // The server sends no storage URL any more - these
+                          // are identity documents, so the only way to one is a
+                          // path on our own API that the viewer fetches with
+                          // the admin's token. `docType` is absent on records
+                          // from before the upload form asked for it.
+                          const label = doc.docType
+                            ? docTypeLabel(doc.docType)
+                            : `Document ${i + 1}`;
                           return (
                             <button
-                              key={url}
+                              key={doc.viewPath}
                               type="button"
                               onClick={() =>
                                 setPreviewDoc({
-                                  url,
+                                  url: doc.viewPath,
                                   title: `${u.name} — ${label}`,
-                                  fileName: typeof doc === "string" ? "" : doc.fileName,
+                                  fileName: doc.fileName,
                                 })
                               }
                               className="flex items-center gap-1 text-xs text-teal border border-teal/30 rounded-lg px-2.5 py-1.5 hover:bg-teal/5 transition-all"
@@ -270,6 +273,9 @@ function AdminVerifications() {
         url={previewDoc?.url}
         title={previewDoc?.title}
         fileName={previewDoc?.fileName}
+        // Goes through apiClient so the admin JWT is attached - these files are
+        // no longer reachable without it.
+        authenticated
       />
     </div>
   );

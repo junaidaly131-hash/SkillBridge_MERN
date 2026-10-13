@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -95,15 +96,41 @@ app.add_middleware(
 )
 
 
-# Security: Simple API key validation
+# The value config.py used to fall back to when API_KEY was unset. It is
+# committed in a public repository, so it is not a secret and is refused here.
+PLACEHOLDER_API_KEY = "your-secret-api-key-here"
+
+
 async def verify_api_key(x_api_key: Optional[str] = Header(None)):
-    """Verify API key from header"""
-    if settings.environment == "production":
-        if not x_api_key or x_api_key != settings.api_key:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or missing API key"
-            )
+    """Verify the API key on every request.
+
+    This used to be checked only when environment == "production", and
+    `environment` defaults to "development" - so unless ENVIRONMENT was
+    explicitly set on the deployed service, /train and /recommend had no
+    authentication at all. /train walks the whole database and rebuilds the
+    models, which made it a free way to burn the service's CPU, and /recommend
+    returns who is on the platform and what they teach.
+
+    Fails closed in two directions now: no key configured is a 503 rather than
+    an open door, and a key that matches the old public placeholder is treated
+    as no key at all.
+    """
+    expected = (settings.api_key or "").strip()
+
+    if not expected or expected == PLACEHOLDER_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service is not configured with an API key. Set API_KEY."
+        )
+
+    # compare_digest, not ==: a plain comparison returns as soon as two bytes
+    # differ, which leaks how much of a guess was correct.
+    if not x_api_key or not secrets.compare_digest(x_api_key, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key"
+        )
+
     return x_api_key
 
 

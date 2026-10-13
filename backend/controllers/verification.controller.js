@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import { notifyAdmins, emitToAdmins } from '../utils/notify.js';
 import { isValidDocType, DEFAULT_VERIFICATION_DOC_TYPE } from '../config/verificationDocTypes.js';
 import { describeMissingDocs, isTeachingAccount } from '../config/verificationPolicy.js';
+import { toReviewableDocs } from '../utils/verificationDocs.js';
 
 export const submitVerification = async (req, res) => {
   try {
@@ -31,8 +32,14 @@ export const submitVerification = async (req, res) => {
     const rawTypes = req.body.docTypes;
     const docTypes = Array.isArray(rawTypes) ? rawTypes : rawTypes ? [rawTypes] : [];
 
+    // `file.path` (Cloudinary's secure_url) is deliberately NOT stored. For a
+    // private asset that URL carries a signature with no expiry, so keeping it
+    // would leave a permanently working link to a CNIC sitting in the database.
+    // The public id is enough to sign a fresh, short-lived URL on demand - see
+    // signedVerificationDocUrl.
     const docs = files.map((file, i) => ({
-      url: file.path,
+      publicId: file.filename,
+      resourceType: file.mimetype === 'application/pdf' ? 'raw' : 'image',
       docType: isValidDocType(docTypes[i]) ? docTypes[i] : DEFAULT_VERIFICATION_DOC_TYPE,
       fileName: file.originalname || '',
     }));
@@ -65,7 +72,7 @@ export const submitVerification = async (req, res) => {
         name: user.name,
         email: user.email,
         skillsTeaching: user.skillsTeaching,
-        verificationDocs: user.verificationDocs,
+        verificationDocs: toReviewableDocs(user),
         verificationSubmittedAt: user.verificationSubmittedAt,
         verificationStatus: user.verificationStatus,
       },
@@ -74,7 +81,13 @@ export const submitVerification = async (req, res) => {
     res.json({
       success: true,
       verificationStatus: user.verificationStatus,
-      verificationDocs: user.verificationDocs,
+      // The uploader gets back what they submitted, minus any way to address
+      // the stored file. They have the originals; what they need from us is
+      // confirmation of which document types landed.
+      verificationDocs: user.verificationDocs.map((d) => ({
+        docType: d.docType,
+        fileName: d.fileName,
+      })),
       verificationSubmittedAt: user.verificationSubmittedAt,
     });
   } catch (error) {

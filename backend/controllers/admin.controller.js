@@ -11,6 +11,8 @@ import { processCompletedMeetingCredits } from '../utils/meetingCompletion.js';
 import { logAdminAction } from '../utils/auditLog.js';
 import { notifyUser, emitToUser, emitToAdmins } from '../utils/notify.js';
 import { releaseEarnedFromPayout } from '../utils/wallet.js';
+import { signedVerificationDocUrl } from '../config/cloudinary.js';
+import { toReviewableDocs } from '../utils/verificationDocs.js';
 import {
   verificationApprovedEmail,
   verificationRejectedEmail,
@@ -484,6 +486,54 @@ export const getAuditLog = async (req, res) => {
 
 const VALID_VERIFICATION_STATUSES = User.schema.path('verificationStatus').enumValues;
 
+/**
+ * Streams one verification document to the reviewing admin.
+ *
+ * Proxied rather than redirected: a redirect would hand the browser a signed
+ * Cloudinary URL, and from there it is in history, in the address bar, and in
+ * anything the reviewer pastes. Fetching it here means the document reaches
+ * exactly one authenticated response and nothing else.
+ */
+export const getVerificationDoc = async (req, res) => {
+  try {
+    const { userId, index } = req.params;
+
+    const user = await User.findById(userId).select('verificationDocs');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const doc = (user.verificationDocs || [])[Number(index)];
+    if (!doc) return res.status(404).json({ message: 'Document not found' });
+
+    // Legacy records hold a bare public URL (or an object with one) from before
+    // these uploads were made private; scripts/privatiseVerificationDocs.js
+    // converts them. Until it has run for a given record, fall back to that URL
+    // so review is never blocked.
+    const legacyUrl = typeof doc === 'string' ? doc : doc.url;
+    const source = doc.publicId
+      ? signedVerificationDocUrl(doc.publicId, doc.resourceType)
+      : legacyUrl;
+
+    if (!source) return res.status(404).json({ message: 'Document file is missing' });
+
+    const upstream = await fetch(source);
+    if (!upstream.ok) {
+      return res.status(502).json({ message: 'Failed to fetch document from storage provider' });
+    }
+
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream');
+    // Identity documents must not sit in a shared cache, and the signed URL
+    // behind this response is short-lived anyway.
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Disposition', 'inline');
+    return res.send(buffer);
+  } catch (error) {
+    console.error('Error streaming verification document:', error);
+    return res.status(500).json({ message: 'Failed to load document' });
+  }
+};
+
 export const getVerifications = async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -513,7 +563,7 @@ export const getVerifications = async (req, res) => {
         name: u.name,
         email: u.email,
         verificationStatus: u.verificationStatus,
-        verificationDocs: u.verificationDocs,
+        verificationDocs: toReviewableDocs(u),
         verificationSubmittedAt: u.verificationSubmittedAt,
         verificationReviewedAt: u.verificationReviewedAt,
         verificationRejectionReason: u.verificationRejectionReason,

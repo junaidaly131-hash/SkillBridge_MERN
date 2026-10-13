@@ -32,6 +32,15 @@ const verificationCodeSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Wrong guesses against this specific code. A 6-digit code is only 1,000,000
+    // possibilities, so without a ceiling the 10-minute window is long enough to
+    // walk the whole space - and /auth/verify hands back a full session, so that
+    // would be account takeover with no password involved. At MAX_CODE_ATTEMPTS
+    // the code is burned and the user has to request a new one.
+    attempts: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

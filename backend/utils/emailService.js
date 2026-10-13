@@ -115,12 +115,35 @@ export async function sendFormEmail({ to, from = 'support', subject, html, text,
   }
 }
 
+/**
+ * Prints a sign-in code to the terminal, but only when there is genuinely no
+ * way to deliver it.
+ *
+ * This used to print unconditionally - the old comment said "always print the
+ * code to the terminal for local testing, regardless of whether SMTP is
+ * configured". On Render that meant every login and password-reset code landed
+ * in the application log next to the address it belonged to, where the host
+ * retains it and anyone with dashboard access can read it. A code is a
+ * single-use password: that is account takeover for anyone who can see the
+ * logs, admins included, and it walks straight past the per-code attempt limit
+ * in routes/auth.routes.js.
+ *
+ * So: never in production, and otherwise only when no transport exists at all,
+ * which is the one case where the developer has no other way to get the code.
+ */
+function logCodeForLocalDevOnly(label, email, code) {
+  if (process.env.NODE_ENV === 'production') return;
+  const hasTransport = Boolean(process.env.RESEND_API_KEY) || Boolean(smtpTransport());
+  if (hasTransport) return;
+
+  console.log('='.repeat(50));
+  console.log(`🔑 ${label} for ${email}: ${code}`);
+  console.log('(shown because no mail transport is configured — local dev only)');
+  console.log('='.repeat(50));
+}
+
 export async function sendVerificationCode(email, code) {
-  // Always print the code to the terminal for local testing, regardless of
-  // whether SMTP is configured or the email actually sends successfully.
-  console.log('='.repeat(50));
-  console.log(`🔑 2FA Verification Code for ${email}: ${code}`);
-  console.log('='.repeat(50));
+  logCodeForLocalDevOnly('2FA Verification Code', email, code);
 
   // Check if SMTP is configured
   const smtpHost = process.env.SMTP_HOST;
@@ -171,9 +194,7 @@ export async function sendVerificationCode(email, code) {
 }
 
 export async function sendPasswordResetCode(email, code) {
-  console.log('='.repeat(50));
-  console.log(`🔑 Password Reset Code for ${email}: ${code}`);
-  console.log('='.repeat(50));
+  logCodeForLocalDevOnly('Password Reset Code', email, code);
 
   const smtpHost = process.env.SMTP_HOST;
   const smtpUser = process.env.SMTP_USER;

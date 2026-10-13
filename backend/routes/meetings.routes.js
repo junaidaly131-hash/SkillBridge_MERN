@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import { authenticateToken } from '../middleware/auth.js';
 import Conversation from '../models/Conversation.js';
 import Meeting from '../models/Meeting.js';
@@ -19,9 +20,19 @@ import {
 
 const router = express.Router();
 
-function makeJitsiRoomName({ conversationId, startsAt }) {
-  const ts = startsAt ? new Date(startsAt).getTime() : Date.now();
-  return `skillbridge-${conversationId || 'general'}-${ts}`.replace(/[^a-zA-Z0-9-_]/g, '');
+// Room names are random, not derived from the booking.
+//
+// They used to be `skillbridge-<conversationId>-<startsAtMillis>`, and a
+// scheduled time picked in a UI lands on a whole minute - so the only real
+// secret was the conversation id, which both parties know and which stays the
+// same for every session they ever book together. Anyone who had once shared a
+// conversation could work out the name of any later call in it.
+//
+// 16 random bytes instead. Nothing about the room can be inferred from who is
+// in it or when it runs, which is what stops a room name being guessed even if
+// a token is ever broadened again.
+function makeJitsiRoomName() {
+  return `skillbridge-${crypto.randomBytes(16).toString('hex')}`;
 }
 
 // List meetings for current user (upcoming first, auto-cleanup expired)
@@ -130,6 +141,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
         name: requester.name,
         email: requester.email,
         isModerator,
+        // Bare name, not videoRoomName: the App ID belongs in the token's `sub`
+        // claim, and including it here would make the literal comparison fail.
+        roomName: meeting.roomName,
       });
     } catch (tokenError) {
       console.error('Failed to generate JaaS token:', tokenError.message);
@@ -253,29 +267,61 @@ router.post('/', authenticateToken, async (req, res) => {
       });
     }
 
-    const roomName = makeJitsiRoomName({ conversationId: convId, startsAt });
+    const roomName = makeJitsiRoomName();
     const joinUrl = `https://meet.jit.si/${roomName}`;
 
-    const meeting = await Meeting.create({
-      createdBy: userId,
-      participants: [userId, otherUserId],
-      title: title.trim(),
-      startsAt: new Date(startsAt),
-      duration: duration || 60,
-      conversation: convId || null,
-      provider: 'jitsi',
-      roomName,
-      joinUrl,
-      sessionType,
-      skill: skill?.trim() || null,
-      status: 'scheduled',
-      isFreeTrialSession,
-    });
-
-    // Used up at booking time, not completion - once booked, the trial is
-    // spent even if this specific session later gets cancelled or disputed.
+    // The trial is claimed here, atomically, BEFORE the meeting exists.
+    //
+    // The flag used to be read near the top and written after Meeting.create,
+    // with a dozen awaits in between. Node yields at every one of those, so two
+    // requests arriving together both read `false`, both passed the check above,
+    // and both got a free session - as many as the attacker cared to fire at
+    // once. No credits move on a trial, but it is also the one path that skips
+    // the balance check AND the learner's identity check, so racing it meant
+    // repeatedly booking a teacher's time while still unverified.
+    //
+    // findOneAndUpdate matches on the flag it is about to change, so the
+    // database decides the winner: the second request matches nothing and is
+    // told the trial is spent. Same pattern as the payout hold in
+    // controllers/payout.controller.js.
+    //
+    // Claimed this late so that none of the validation above can burn someone's
+    // only trial on a request that was going to be rejected anyway.
     if (isFreeTrialSession) {
-      await User.findByIdAndUpdate(userId, { freeTrialSessionUsed: true });
+      const claimed = await User.findOneAndUpdate(
+        { _id: userId, freeTrialSessionUsed: { $ne: true } },
+        { $set: { freeTrialSessionUsed: true } }
+      );
+      if (!claimed) {
+        return res.status(400).json({ message: "You've already used your one free trial session." });
+      }
+    }
+
+    let meeting;
+    try {
+      meeting = await Meeting.create({
+        createdBy: userId,
+        participants: [userId, otherUserId],
+        title: title.trim(),
+        startsAt: new Date(startsAt),
+        duration: duration || 60,
+        conversation: convId || null,
+        provider: 'jitsi',
+        roomName,
+        joinUrl,
+        sessionType,
+        skill: skill?.trim() || null,
+        status: 'scheduled',
+        isFreeTrialSession,
+      });
+    } catch (createError) {
+      // Give the trial back - it was claimed for a session that does not exist.
+      // Without this, a validation error inside Meeting.create would silently
+      // cost the user their one free session.
+      if (isFreeTrialSession) {
+        await User.findByIdAndUpdate(userId, { freeTrialSessionUsed: false });
+      }
+      throw createError;
     }
 
     const populated = await Meeting.findById(meeting._id).populate('participants', 'name email avatar');

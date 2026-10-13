@@ -49,19 +49,48 @@ const certificationStorage = new CloudinaryStorage({
   },
 });
 
-// Storage for teacher verification documents
+// Storage for identity/credential verification documents.
+//
+// type: 'private' is the important line. Cloudinary's default is 'upload',
+// which serves an asset to anyone holding the URL - no credentials, no expiry.
+// These are CNICs and degree certificates, and the public_id was
+// "<timestamp>-<userId>" where the user id is already on show in /teachers/:id,
+// so the only thing standing between a stranger and someone's national ID was
+// guessing a millisecond. Private assets 404 on an unsigned URL (verified
+// against this account for both resource types), and admins view them through
+// GET /api/admin/verifications/:userId/docs/:index, which signs a short-lived
+// URL per request.
+//
+// resource_type is pinned rather than left as 'auto': the delivery URL has to
+// be rebuilt later to sign it, and 'auto' means not knowing whether Cloudinary
+// filed the asset under /image/ or /raw/.
 const verificationStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
     const isPdf = file.mimetype === 'application/pdf';
     return {
       folder: 'skillbridge/verifications',
-      resource_type: isPdf ? 'raw' : 'auto',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'],
+      resource_type: isPdf ? 'raw' : 'image',
+      type: 'private',
+      ...(isPdf ? {} : { allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }),
       public_id: `${Date.now()}-${req.user?.userId || 'doc'}`,
     };
   },
 });
+
+/**
+ * A signed, short-lived URL for one private verification document.
+ *
+ * Ten minutes is plenty for a reviewer to open a file and nowhere near long
+ * enough for the link to be worth passing on. Note this is deliberately NOT
+ * the `secure_url` Cloudinary returns at upload time: that one is signed too,
+ * but with no expiry at all, so it would work forever once it leaked.
+ */
+export const signedVerificationDocUrl = (publicId, resourceType = 'image') =>
+  cloudinary.utils.private_download_url(publicId, '', {
+    resource_type: resourceType === 'raw' ? 'raw' : 'image',
+    expires_at: Math.floor(Date.now() / 1000) + 10 * 60,
+  });
 
 // Cloudinary's `allowed_formats` validation is unreliable for resource_type
 // 'raw' (it rejects legitimate files like .txt with "unknown file format"),

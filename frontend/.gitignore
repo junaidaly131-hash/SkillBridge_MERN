@@ -23,3 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 dist-before/
+
+# Environment variables
+#
+# frontend/.env is currently TRACKED on purpose - it holds only VITE_* values
+# (API base URL, OAuth client ids) that are compiled into the browser bundle and
+# are public by definition. These rules stop anything else landing in the repo:
+# this is a public repository, and a secret added to a .env here would be
+# committed by the next `git add -A` with nothing to catch it.
+.env.local
+.env.*.local
+.env.production
+.env.development

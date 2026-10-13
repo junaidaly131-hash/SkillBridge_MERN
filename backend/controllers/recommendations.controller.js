@@ -2,7 +2,15 @@ import axios from 'axios';
 import User from '../models/User.js';
 
 const RECOMMENDATION_SERVICE_URL = process.env.RECOMMENDATION_SERVICE_URL || 'http://localhost:8001';
-const RECOMMENDATION_SERVICE_API_KEY = process.env.RECOMMENDATION_SERVICE_API_KEY || 'your-secret-api-key-here';
+
+// No fallback value. This used to default to 'your-secret-api-key-here', the
+// same placeholder the Python service defaulted to - both sides agreeing on a
+// string that is committed in a public repository, so the shared secret was
+// public whenever either deployment forgot to set the variable. Sending no key
+// at all is the honest failure: the service answers 401 and the caller sees the
+// recommendations outage state, instead of the pair silently authenticating
+// with something anyone can read.
+const RECOMMENDATION_SERVICE_API_KEY = process.env.RECOMMENDATION_SERVICE_API_KEY || '';
 
 /**
  * Get AI-powered recommendations in either direction.

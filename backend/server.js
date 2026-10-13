@@ -9,6 +9,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { connectDB } from './config/database.js';
 import { describeSafepayConfig } from './config/safepay.js';
+import { assertJwtConfig } from './config/jwt.js';
 import publicRoutes from './routes/public.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
@@ -39,8 +40,25 @@ const __dirname = dirname(__filename);
 // Load environment variables
 dotenv.config({ path: join(__dirname, '.env') });
 
+// Before anything else: a missing JWT_SECRET means every login would fail, and
+// a missing JWT_EXPIRE used to mean tokens that never expire. Checked here so
+// either is a clear startup error rather than a surprise at the first request.
+assertJwtConfig();
+
 const app = express();
 const server = http.createServer(app);
+
+// Render terminates TLS at its own proxy and forwards the real client address
+// as the LAST entry of X-Forwarded-For. Without this, every request looks like
+// it comes from the proxy and the rate limiters in middleware/rateLimit.js
+// would throttle all users as one.
+//
+// The value is 1, not `true`. `true` tells Express to believe the whole header,
+// and since a client can send their own X-Forwarded-For, an attacker would be
+// able to put any address they like at the front and get a fresh rate-limit
+// bucket per request. Trusting exactly one hop means Express takes the entry
+// Render itself appended, which a client cannot forge.
+app.set('trust proxy', 1);
 
 // One list for both the HTTP API and the socket server, so they can't drift
 // apart. FRONTEND_URL is folded in: it is already the domain Safepay redirects

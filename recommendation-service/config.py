@@ -36,7 +36,12 @@ class Settings(BaseSettings):
     auto_training_cooldown_minutes: int = 5
     
     # Security
-    api_key: str = "your-secret-api-key-here"
+    # No default. This used to fall back to "your-secret-api-key-here",
+    # which is committed in a public repository - so any deployment that
+    # forgot to set API_KEY authenticated callers with a known string.
+    # Empty means unconfigured, and verify_api_key refuses every request
+    # rather than letting them through.
+    api_key: str = ""
     allowed_origins: str = "http://localhost:5173,http://localhost:3000"
     
     # Logging

@@ -4,6 +4,7 @@ import Report from '../models/Report.js';
 import { CreditWallet } from '../models/Credit.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { uploadAvatar, uploadCertification, deleteFromCloudinary } from '../config/cloudinary.js';
+import { documentFetchLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
@@ -32,7 +33,15 @@ router.get('/me', authenticateToken, async (req, res) => {
         stats: user.stats,
         createdAt: user.createdAt,
         verificationStatus: user.verificationStatus,
-        verificationDocs: user.verificationDocs,
+        // Document types and names only - no storage id or URL. The owner
+        // already has these files; the UI uses this to show which slots are
+        // filled, and handing out a way to address the stored copy would widen
+        // the only route to a CNIC for no gain.
+        verificationDocs: (user.verificationDocs || []).map((d) =>
+          typeof d === 'string'
+            ? { docType: undefined, fileName: '' }
+            : { docType: d.docType, fileName: d.fileName || '' }
+        ),
         verificationSubmittedAt: user.verificationSubmittedAt,
         verificationReviewedAt: user.verificationReviewedAt,
         verificationRejectionReason: user.verificationRejectionReason,
@@ -497,7 +506,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Download a certification file from another user's profile (public)
-router.get('/:userId/certifications/:certId/download', authenticateToken, async (req, res) => {
+router.get('/:userId/certifications/:certId/download', authenticateToken, documentFetchLimiter, async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
     if (!user) {

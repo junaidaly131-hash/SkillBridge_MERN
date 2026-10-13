@@ -44,9 +44,29 @@ const learningSkillSchema = new mongoose.Schema({
 });
 
 const verificationDocSchema = new mongoose.Schema({
+  // Legacy only. These documents used to be uploaded with Cloudinary's default
+  // delivery type, which meant the URL alone was enough for anyone to fetch
+  // somebody's CNIC - no login, no expiry. New uploads are private and carry
+  // `publicId` instead, and the URL to view one is signed per request. Kept
+  // (and no longer required) so records written before that change still open;
+  // scripts/privatiseVerificationDocs.js converts them.
   url: {
     type: String,
-    required: true,
+    default: '',
+  },
+  // Cloudinary public id of a private asset. Never a URL: a signed Cloudinary
+  // URL does not expire unless an expiry is baked in, so storing one would put
+  // a permanently working link to a national ID document in the database.
+  publicId: {
+    type: String,
+    default: '',
+  },
+  // 'image' or 'raw' - needed to address the asset, since Cloudinary namespaces
+  // the two separately and a PDF is stored as raw.
+  resourceType: {
+    type: String,
+    enum: ['image', 'raw'],
+    default: 'image',
   },
   docType: {
     type: String,
