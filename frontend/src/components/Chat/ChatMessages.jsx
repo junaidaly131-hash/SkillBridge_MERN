@@ -52,11 +52,10 @@ const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 /**
- * Collapses a message's reaction rows into one entry per emoji.
+ * Collapses a message's reactions into one chip per emoji.
  *
- * Reactions are stored one per (user, emoji) so they can be toggled
- * individually; the bubble wants "😂 3" with the button lit if you are one of
- * the three.
+ * Each person holds at most one reaction, so a chip's count is a number of
+ * people - "😂 3" with the chip tinted if you are one of the three.
  */
 function groupReactions(reactions, meId) {
   const byEmoji = new Map();
@@ -742,10 +741,15 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
         {!isLoadingMessages && displayMessages.map((msg) => (
           <div
             key={msg._id}
-            className={`group flex ${msg.isOwn ? "justify-end" : "justify-start"}`}
+            // Extra space below a bubble that carries reactions, since the
+            // chip hangs past its bottom edge and would otherwise sit on top
+            // of the next message.
+            className={`group flex ${msg.isOwn ? "justify-end" : "justify-start"} ${
+              msg.reactions.length > 0 ? "mb-2" : ""
+            }`}
           >
             <div
-              className={`max-w-[70%] rounded-2xl px-4 py-3 shadow-sm ${
+              className={`relative max-w-[70%] rounded-2xl px-4 py-3 shadow-sm ${
                 msg.isOwn
                   ? "bg-teal-button text-white rounded-br-sm"
                   : "bg-white text-black border border-[#E5E5E5] rounded-bl-sm"
@@ -892,28 +896,34 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
                   )}
                 </div>
               )}
-              {/* Reactions already left on this message. Clicking one you are
-                  part of removes yours; clicking another adds it. */}
+              {/* Reactions sit ON the bubble's bottom edge, half outside it,
+                  rather than inside the text block - inside, they pushed the
+                  timestamp down and read as part of the message. Anchored to
+                  the side the bubble came from, so they never cover its tail.
+                  Clicking one you are part of removes yours. */}
               {msg.reactions.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
+                <div
+                  className={`absolute -bottom-2 flex flex-wrap gap-0.5 ${
+                    msg.isOwn ? "right-2" : "left-2"
+                  }`}
+                >
                   {msg.reactions.map((r) => (
                     <button
                       key={r.emoji}
                       type="button"
                       onClick={() => handleToggleReaction(msg._id, r.emoji)}
                       title={r.names.join(", ")}
-                      className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs transition-all border ${
-                        r.mine
-                          ? msg.isOwn
-                            ? "bg-white/30 border-white/50 text-white"
-                            : "bg-teal/10 border-teal/40 text-teal"
-                          : msg.isOwn
-                            ? "bg-white/10 border-white/20 text-white/90"
-                            : "bg-gray-50 border-[#E5E5E5] text-gray"
+                      // Light background and the same #E5E5E5 hairline every
+                      // other card and bubble in the app uses - a solid teal
+                      // outline read as a button to press rather than a tally
+                      // of who reacted. Your own reaction is marked by the
+                      // tint, not by a heavier border.
+                      className={`flex items-center gap-0.5 rounded-full px-1.5 py-[3px] leading-none shadow-sm transition-colors border border-[#E5E5E5] ${
+                        r.mine ? "bg-light-teal text-teal" : "bg-white text-gray"
                       }`}
                     >
-                      <span>{r.emoji}</span>
-                      <span className="font-family-poppins">{r.count}</span>
+                      <span className="text-[11px]">{r.emoji}</span>
+                      <span className="font-family-poppins text-[10px]">{r.count}</span>
                     </button>
                   ))}
                 </div>

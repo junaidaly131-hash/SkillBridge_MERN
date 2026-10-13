@@ -45,8 +45,9 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    // One entry per (user, emoji). A person may react with several different
-    // emoji; reacting with the same one again removes it.
+    // At most one entry per user. Choosing a different emoji replaces theirs,
+    // choosing the same one again clears it - so the chips under a message are
+    // a count of people, not of taps.
     reactions: [
       {
         _id: false,

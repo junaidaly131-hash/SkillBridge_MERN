@@ -445,10 +445,12 @@ router.patch('/messages/:id', authenticateToken, async (req, res) => {
 });
 
 /**
- * Toggle one reaction on a message.
+ * Set this user's reaction on a message.
  *
- * Reacting with an emoji you already used removes it; different emoji stack, so
- * a message can carry several from the same person.
+ * One per person: picking a different emoji replaces whatever you had, and
+ * picking the one you already have clears it. Letting them stack meant a single
+ * person could pile several emoji onto one message, which reads as several
+ * people having reacted.
  */
 router.post('/messages/:id/reactions', authenticateToken, async (req, res) => {
   try {
@@ -462,11 +464,13 @@ router.post('/messages/:id/reactions', authenticateToken, async (req, res) => {
     const { message, conversation, error } = await loadMessageForParticipant(req.params.id, userId);
     if (error) return res.status(error.status).json({ message: error.message });
 
-    const existing = message.reactions.findIndex(
-      (r) => String(r.user) === String(userId) && r.emoji === emoji
-    );
-    if (existing >= 0) message.reactions.splice(existing, 1);
-    else message.reactions.push({ user: userId, emoji });
+    const mine = message.reactions.find((r) => String(r.user) === String(userId));
+    const wasSameEmoji = mine?.emoji === emoji;
+
+    // Drop whatever this user had, then re-add unless they tapped the one they
+    // already had (which means "remove it").
+    message.reactions = message.reactions.filter((r) => String(r.user) !== String(userId));
+    if (!wasSameEmoji) message.reactions.push({ user: userId, emoji });
 
     await message.save();
 
