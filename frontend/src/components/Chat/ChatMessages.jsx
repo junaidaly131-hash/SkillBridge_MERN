@@ -53,6 +53,7 @@ function formatFileSize(bytes) {
 // decides what the UI offers.
 const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
+const EDIT_WINDOW_MINUTES = Math.round(EDIT_WINDOW_MS / 60000);
 
 /**
  * Collapses a message's reactions into one chip per emoji.
@@ -468,6 +469,16 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
           !m.deletedForEveryoneAt &&
           !String(m._id).startsWith("tmp-") &&
           now - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS,
+        // Split in two on purpose. Editing disappearing silently looked
+        // identical whether the message belonged to someone else or had simply
+        // gone past its window, which read as the feature being broken. The
+        // entry is now shown, and disabled with a reason, whenever editing is
+        // something this message could ever have supported.
+        isEditable:
+          isOwn &&
+          !m.deletedForEveryoneAt &&
+          (m.messageType || "text") === "text" &&
+          !String(m._id).startsWith("tmp-"),
         canEdit:
           isOwn &&
           !m.deletedForEveryoneAt &&
@@ -1048,17 +1059,24 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
                       menuDropsDown ? "top-full mt-1" : "bottom-full mb-1"
                     } ${msg.isOwn ? "left-0" : "right-0"}`}
                   >
-                    {msg.canEdit && (
+                    {msg.isEditable && (
                       <button
                         type="button"
+                        disabled={!msg.canEdit}
+                        title={msg.canEdit ? undefined : `Messages can only be edited within ${EDIT_WINDOW_MINUTES} minutes of sending`}
                         onClick={() => {
                           setMenuForId(null);
                           handleStartEdit(msg);
                         }}
-                        className="w-full px-3 py-2 text-left text-sm text-black hover:bg-gray-50 flex items-center gap-2 font-family-poppins"
+                        className="w-full px-3 py-2 text-left text-sm text-black hover:bg-gray-50 disabled:text-gray disabled:hover:bg-transparent disabled:cursor-not-allowed flex items-center gap-2 font-family-poppins"
                       >
                         <Pencil size={15} />
-                        Edit
+                        <span className="flex-1">Edit</span>
+                        {!msg.canEdit && (
+                          <span className="font-family-poppins text-[10px] text-gray">
+                            {EDIT_WINDOW_MINUTES} min limit
+                          </span>
+                        )}
                       </button>
                     )}
                     {!msg.isAttachment && !msg.isDeleted && (
@@ -1277,7 +1295,9 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
             <p className="font-family-poppins text-sm text-gray mb-5">
               {deletingMsg.canDeleteForEveryone
                 ? "Remove it from this chat for both of you, or just hide it from your own view."
-                : `This removes it from your view only — ${chat?.name || "the other person"} keeps their copy.`}
+                : deletingMsg.isOwn
+                  ? `This message is older than ${EDIT_WINDOW_MINUTES} minutes, so it can no longer be removed for ${chat?.name || "the other person"} — only hidden from your own view.`
+                  : `You can only delete your own messages for everyone. This hides ${chat?.name || "their"} message from your view; they keep their copy.`}
             </p>
             <div className="flex flex-col gap-2">
               {deletingMsg.canDeleteForEveryone && (
