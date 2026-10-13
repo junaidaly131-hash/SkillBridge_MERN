@@ -3,8 +3,9 @@ import { Phone, MoreVertical, Send, Smile, ArrowLeft, Trash2, CalendarPlus, Pape
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { fetchMessages, upsertMessage, replaceMessage, markConversationAsRead, deleteConversation, sendAttachment } from "../../store/chatSlice";
+import { fetchMeetings, respondToMeeting } from "../../store/meetingsSlice";
 import { blockUser, unblockUser, reportUser } from "../../store/profileSlice";
-import { getSocket } from "../../socket";
+import { getSocket, onConnected } from "../../socket";
 import { useToast } from "../../ui/Toast";
 import ReportUserModal from "../Modal/ReportUserModal";
 import EmojiPicker from "emoji-picker-react";
@@ -13,6 +14,15 @@ const MAX_ATTACHMENT_SIZE = 15 * 1024 * 1024; // matches backend uploadChatAttac
 // Mirrors SchedulePanel.jsx - a call can be joined starting this many minutes
 // before its scheduled start.
 const JOIN_WINDOW_BEFORE_MINUTES = 10;
+
+// How long the other side's typing dots stay up with no further signal. Covers
+// the case where their tab closes mid-word, so no stopTyping ever arrives.
+const TYPING_STALE_MS = 4000;
+// Idle gap after the last keystroke before we tell them we've stopped.
+const TYPING_IDLE_MS = 1500;
+// At most one `typing` emit per this interval, so holding a key down doesn't
+// turn every character into a socket round trip.
+const TYPING_THROTTLE_MS = 2000;
 
 function formatFileSize(bytes) {
   if (!bytes) return "";
@@ -47,15 +57,37 @@ function linkifyText(text) {
   );
 }
 
-function getMeetingInviteState(metadata, now) {
+/**
+ * What the meeting-invite bubble should show.
+ *
+ * `metadata` is frozen at the moment the message was sent, so the live status
+ * comes from the meetings store instead - a request that has since been
+ * accepted, declined or withdrawn must not keep offering the same buttons.
+ * A meeting that is no longer in that list is no longer upcoming, which is all
+ * the bubble needs to know.
+ */
+function getMeetingInviteState(metadata, now, { liveMeeting, meetingsLoaded, meId }) {
   if (!metadata?.meetingId || !metadata?.startsAt) return null;
+
   const startsAtMs = new Date(metadata.startsAt).getTime();
   const endsAtMs = startsAtMs + (metadata.duration || 60) * 60 * 1000;
   const joinOpensAtMs = startsAtMs - JOIN_WINDOW_BEFORE_MINUTES * 60 * 1000;
+
+  const status = liveMeeting?.status || (meetingsLoaded ? "gone" : metadata.status || "pending");
+  const isPending = status === "pending";
+  const createdByMe = liveMeeting
+    ? String(liveMeeting.createdBy) === String(meId)
+    : String(metadata.invitedUserId) !== String(meId);
+
   return {
     meetingId: metadata.meetingId,
-    joinUrl: metadata.joinUrl,
-    canJoin: now >= joinOpensAtMs && now <= endsAtMs,
+    status,
+    isPending,
+    // Only the invited side answers. Shown from the live record where we have
+    // one, falling back to who the invitation named.
+    awaitingMyAnswer: isPending && !createdByMe,
+    awaitingTheirAnswer: isPending && createdByMe,
+    canJoin: status === "scheduled" && now >= joinOpensAtMs && now <= endsAtMs,
     isPast: now > endsAtMs,
   };
 }
@@ -70,6 +102,10 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [isTogglingBlock, setIsTogglingBlock] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [otherIsTyping, setOtherIsTyping] = useState(false);
+  const typingClearRef = useRef(null);
+  const typingSentAtRef = useRef(0);
+  const stopTypingRef = useRef(null);
   const menuRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -81,6 +117,12 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
   const { user } = useSelector((state) => state.auth);
   const { profile } = useSelector((state) => state.profile);
   const { onlineUserIds, lastSeenByUser } = useSelector((state) => state.presence);
+  // Live status for meeting-invite bubbles. SchedulePanel loads this list; on
+  // narrow screens that panel is a drawer and may never have been opened, so
+  // this component fetches it too (fetchMeetings is idempotent).
+  const { meetings } = useSelector((state) => state.meetings);
+  const [meetingsLoaded, setMeetingsLoaded] = useState(false);
+  const [respondingMeetingId, setRespondingMeetingId] = useState(null);
 
   const otherUserId = chat?.otherUserId;
   const isBlocked = Boolean(
@@ -134,7 +176,12 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
     dispatch(markConversationAsRead(conversationId));
 
     const socket = getSocket();
-    socket.emit("joinConversation", { conversationId });
+    // Re-joined on every reconnect, not just once: Socket.IO rooms are tied to
+    // the socket id, so a dropped connection silently leaves the conversation
+    // room and read receipts and typing stop arriving with no sign of it.
+    const unsubscribeJoin = onConnected(() => {
+      socket.emit("joinConversation", { conversationId });
+    });
     const onNew = ({ message: msg }) => {
       // The reducer will handle deduplication by ID
       dispatch(upsertMessage({ conversationId, message: msg }));
@@ -147,11 +194,67 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
         dispatch(markConversationAsRead(conversationId));
       }
     };
+    // The other side's typing dots. Cleared on their stopTyping, and also by a
+    // local timeout - if their tab closes mid-word no stopTyping ever arrives
+    // and the dots would otherwise stay up forever.
+    const onTyping = ({ conversationId: id }) => {
+      if (String(id) !== String(conversationId)) return;
+      setOtherIsTyping(true);
+      clearTimeout(typingClearRef.current);
+      typingClearRef.current = setTimeout(() => setOtherIsTyping(false), TYPING_STALE_MS);
+    };
+    const onStoppedTyping = ({ conversationId: id }) => {
+      if (String(id) !== String(conversationId)) return;
+      clearTimeout(typingClearRef.current);
+      setOtherIsTyping(false);
+    };
+
     socket.on("newMessage", onNew);
+    socket.on("userTyping", onTyping);
+    socket.on("userStoppedTyping", onStoppedTyping);
     return () => {
+      unsubscribeJoin();
       socket.off("newMessage", onNew);
+      socket.off("userTyping", onTyping);
+      socket.off("userStoppedTyping", onStoppedTyping);
+      clearTimeout(typingClearRef.current);
+      setOtherIsTyping(false);
     };
   }, [conversationId, dispatch, user, chat]);
+
+  // Keeps invite bubbles honest about what has actually been agreed, including
+  // when the other side answers from their own browser.
+  useEffect(() => {
+    const socket = getSocket();
+    const resync = () => {
+      dispatch(fetchMeetings())
+        .unwrap()
+        .then(() => setMeetingsLoaded(true))
+        .catch(() => {});
+    };
+    resync();
+    socket.on("newMeeting", resync);
+    socket.on("meetingUpdated", resync);
+    const unsubscribe = onConnected(resync);
+    return () => {
+      socket.off("newMeeting", resync);
+      socket.off("meetingUpdated", resync);
+      unsubscribe();
+    };
+  }, [dispatch]);
+
+  const handleRespondToInvite = async (meetingId, decision) => {
+    setRespondingMeetingId(meetingId);
+    try {
+      await dispatch(respondToMeeting({ meetingId, decision })).unwrap();
+      toast.success(decision === "accept" ? "Session confirmed." : "Request declined.");
+    } catch (err) {
+      toast.error(err || "Couldn't send your answer");
+      dispatch(fetchMeetings());
+    } finally {
+      setRespondingMeetingId(null);
+    }
+  };
 
   // Re-check join-window eligibility periodically so a meeting-invite bubble's
   // "Join" button enables itself live once the session comes within the join
@@ -181,10 +284,19 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
         isAttachment: m.messageType === "attachment",
         attachment: m.messageType === "attachment" ? m.metadata : null,
         isMeetingInvite: m.messageType === "meeting_invite",
-        meetingInvite: m.messageType === "meeting_invite" ? getMeetingInviteState(m.metadata, now) : null,
+        meetingInvite:
+          m.messageType === "meeting_invite"
+            ? getMeetingInviteState(m.metadata, now, {
+                liveMeeting: (meetings || []).find(
+                  (x) => String(x._id) === String(m.metadata?.meetingId)
+                ),
+                meetingsLoaded,
+                meId,
+              })
+            : null,
       };
     });
-  }, [messages, user, otherUserId, now]);
+  }, [messages, user, otherUserId, now, meetings, meetingsLoaded]);
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -207,12 +319,43 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
     }
   };
 
+  // Tells the other side we're typing, at most once every TYPING_THROTTLE_MS,
+  // and schedules a stopTyping for when the keystrokes stop. Called from the
+  // input's onChange rather than a key handler so pasting counts too.
+  const signalTyping = () => {
+    if (!conversationId) return;
+    const socket = getSocket();
+
+    if (Date.now() - typingSentAtRef.current > TYPING_THROTTLE_MS) {
+      typingSentAtRef.current = Date.now();
+      socket.emit("typing", { conversationId });
+    }
+
+    clearTimeout(stopTypingRef.current);
+    stopTypingRef.current = setTimeout(() => {
+      typingSentAtRef.current = 0;
+      socket.emit("stopTyping", { conversationId });
+    }, TYPING_IDLE_MS);
+  };
+
+  // Sending is itself a reason to stop: the message arriving while the dots are
+  // still showing looks like they're about to say something else.
+  const clearTypingSignal = () => {
+    clearTimeout(stopTypingRef.current);
+    typingSentAtRef.current = 0;
+    if (conversationId) getSocket().emit("stopTyping", { conversationId });
+  };
+
+  // Leaving the chat (or unmounting) should take the dots down on their side.
+  useEffect(() => () => clearTimeout(stopTypingRef.current), []);
+
   const handleSend = () => {
     if (message.trim()) {
       const socket = getSocket();
       const text = message.trim();
       const tempId = `tmp-${Date.now()}`;
       setMessage("");
+      clearTypingSignal();
       
       // optimistic add with temporary ID
       dispatch(
@@ -498,21 +641,74 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
                 <p className="font-family-poppins text-sm whitespace-pre-wrap">{linkifyText(msg.text)}</p>
               )}
               {msg.isMeetingInvite && msg.meetingInvite && !msg.meetingInvite.isPast && (
-                <button
-                  type="button"
-                  disabled={!msg.meetingInvite.canJoin}
-                  onClick={() => navigate(`/meetings/${msg.meetingInvite.meetingId}/call`)}
-                  className={`mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-lg font-family-poppins text-sm font-semibold transition-all ${
-                    msg.meetingInvite.canJoin
-                      ? msg.isOwn
-                        ? "bg-white text-teal hover:bg-white/90"
-                        : "bg-teal-button text-white hover:bg-teal-button-hover"
-                      : `${msg.isOwn ? "bg-white/20 text-white/70" : "bg-gray-100 text-gray"} cursor-not-allowed`
-                  }`}
-                >
-                  <Video size={16} />
-                  {msg.meetingInvite.canJoin ? "Join Meeting" : `Join opens ${JOIN_WINDOW_BEFORE_MINUTES} min before start`}
-                </button>
+                <div className="mt-2">
+                  {/* The invited side is the only one who can answer. Nothing
+                      about this session happens - no call, no credits - until
+                      they do. */}
+                  {msg.meetingInvite.awaitingMyAnswer ? (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={respondingMeetingId === msg.meetingInvite.meetingId}
+                        onClick={() => handleRespondToInvite(msg.meetingInvite.meetingId, "accept")}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-family-poppins text-sm font-semibold transition-all disabled:opacity-50 ${
+                          msg.isOwn ? "bg-white text-teal hover:bg-white/90" : "bg-teal-button text-white hover:bg-teal-button-hover"
+                        }`}
+                      >
+                        <Check size={16} />
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        disabled={respondingMeetingId === msg.meetingInvite.meetingId}
+                        onClick={() => handleRespondToInvite(msg.meetingInvite.meetingId, "decline")}
+                        className={`flex-1 py-2 rounded-lg font-family-poppins text-sm font-semibold transition-all disabled:opacity-50 ${
+                          msg.isOwn
+                            ? "bg-white/20 text-white hover:bg-white/30"
+                            : "bg-gray-100 text-gray hover:bg-gray-200"
+                        }`}
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  ) : msg.meetingInvite.awaitingTheirAnswer ? (
+                    <p
+                      className={`text-center py-2 rounded-lg font-family-poppins text-xs ${
+                        msg.isOwn ? "bg-white/20 text-white/80" : "bg-gray-100 text-gray"
+                      }`}
+                    >
+                      Waiting for a response
+                    </p>
+                  ) : msg.meetingInvite.status === "scheduled" ? (
+                    <button
+                      type="button"
+                      disabled={!msg.meetingInvite.canJoin}
+                      onClick={() => navigate(`/meetings/${msg.meetingInvite.meetingId}/call`)}
+                      className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg font-family-poppins text-sm font-semibold transition-all ${
+                        msg.meetingInvite.canJoin
+                          ? msg.isOwn
+                            ? "bg-white text-teal hover:bg-white/90"
+                            : "bg-teal-button text-white hover:bg-teal-button-hover"
+                          : `${msg.isOwn ? "bg-white/20 text-white/70" : "bg-gray-100 text-gray"} cursor-not-allowed`
+                      }`}
+                    >
+                      <Video size={16} />
+                      {msg.meetingInvite.canJoin
+                        ? "Join Meeting"
+                        : `Join opens ${JOIN_WINDOW_BEFORE_MINUTES} min before start`}
+                    </button>
+                  ) : (
+                    <p
+                      className={`text-center py-2 rounded-lg font-family-poppins text-xs ${
+                        msg.isOwn ? "bg-white/20 text-white/80" : "bg-gray-100 text-gray"
+                      }`}
+                    >
+                      {msg.meetingInvite.status === "declined"
+                        ? "Declined"
+                        : "This request is no longer active"}
+                    </p>
+                  )}
+                </div>
               )}
               <div
                 className={`flex items-center justify-end gap-1 mt-1 ${
@@ -534,13 +730,37 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
             </div>
           </div>
         ))}
+        {otherIsTyping && (
+          <div className="flex justify-start">
+            <div
+              className="bg-white border border-[#E5E5E5] rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm"
+              role="status"
+              aria-label={`${chat.name || "They"} is typing`}
+            >
+              <span className="flex items-center gap-1">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="w-1.5 h-1.5 rounded-full bg-gray typing-dot"
+                    // Staggered so the three dots travel as a wave rather than
+                    // bouncing in unison.
+                    style={{ animationDelay: `${i * 160}ms` }}
+                  />
+                ))}
+              </span>
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div className="bg-white px-4 py-3 border-t border-[#E5E5E5] relative">
-        <div className="flex items-center gap-3">
-          <div className="relative" ref={emojiPickerRef}>
+      <div className="bg-white px-3 sm:px-4 py-3 border-t border-[#E5E5E5] relative">
+        {/* gap-2 on phones: with gap-3 the three buttons plus their gaps left
+            too little for the input, which (see min-w-0 below) then pushed the
+            send button off the right edge. */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="relative shrink-0" ref={emojiPickerRef}>
             <button
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               className="p-2 hover:bg-gray-100 rounded-lg transition-all"
@@ -569,7 +789,7 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploadingFile}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-50"
+            className="shrink-0 p-2 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-50"
             aria-label="Attach file"
           >
             {isUploadingFile ? (
@@ -578,17 +798,27 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
               <Paperclip className="text-gray" size={20} />
             )}
           </button>
+          {/* min-w-0 is what actually fixes the missing send button. An <input>
+              has an intrinsic minimum width from its default `size`, and
+              flex-1 alone cannot shrink a child below its min-content width -
+              so on a narrow phone the input held its ground and the send
+              button was pushed outside the row. */}
           <input
             type="text"
             placeholder="Message"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              signalTyping();
+            }}
+            onBlur={clearTypingSignal}
             onKeyPress={handleKeyPress}
-            className="flex-1 px-4 py-2.5 bg-light-gray rounded-full font-family-poppins text-sm outline-none"
+            className="flex-1 min-w-0 px-4 py-2.5 bg-light-gray rounded-full font-family-poppins text-sm outline-none"
           />
           <button
             onClick={handleSend}
-            className="p-2 bg-dark-blue hover:bg-dark-blue/90 rounded-full transition-all"
+            aria-label="Send message"
+            className="shrink-0 p-2.5 bg-dark-blue hover:bg-dark-blue/90 rounded-full transition-all"
           >
             <Send className="text-white" size={18} />
           </button>

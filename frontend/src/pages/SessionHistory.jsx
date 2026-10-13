@@ -19,6 +19,18 @@ const STATUS_STYLES = {
   completed: "bg-teal/10 text-teal",
   cancelled: "bg-gray-100 text-gray",
   scheduled: "bg-orange-100 text-orange-600",
+  // A session now has to be accepted before it runs, so a request can sit
+  // unanswered, be turned down, or run out of time without ever happening.
+  pending: "bg-amber-100 text-amber-700",
+  declined: "bg-red-50 text-red-600",
+  expired: "bg-gray-100 text-gray",
+};
+
+// "pending" on its own reads as "in progress"; these say what is actually true.
+const STATUS_LABELS = {
+  pending: "Awaiting acceptance",
+  declined: "Declined",
+  expired: "Not accepted in time",
 };
 
 function DisputeBadge({ dispute }) {
@@ -121,7 +133,7 @@ function SessionHistory() {
                             STATUS_STYLES[m.status] || "bg-gray-100 text-gray"
                           }`}
                         >
-                          {m.status}
+                          {STATUS_LABELS[m.status] || m.status}
                         </span>
                       </div>
                       <p className="font-family-poppins text-xs text-gray">

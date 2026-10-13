@@ -67,11 +67,36 @@ const meetingSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // Status: scheduled, completed, cancelled
+    // Lifecycle:
+    //   pending   - created, waiting for the OTHER participant to agree
+    //   scheduled - both sides agreed; this is the only state that can run
+    //   completed - its end time passed while scheduled
+    //   declined  - the invitee said no
+    //   expired   - nobody responded before it was due to start
+    //   cancelled - called off by a participant after being agreed
+    //
+    // Acceptance lives here rather than in a separate `acceptance` field on
+    // purpose. Everything that acts on a real booking - the completion sweep,
+    // the reminder job, the overlap check - already filters on
+    // status: 'scheduled', so a meeting nobody agreed to is excluded from all
+    // of them by construction. With a parallel field, every one of those
+    // queries would have to remember to check it, and the cost of forgetting
+    // is credits moving for a session the other person never agreed to.
     status: {
       type: String,
-      enum: ['scheduled', 'completed', 'cancelled'],
-      default: 'scheduled',
+      enum: ['pending', 'scheduled', 'completed', 'cancelled', 'declined', 'expired'],
+      default: 'pending',
+    },
+    // Who responded to the invitation, and when. Always the participant who
+    // did NOT create the meeting - see POST /meetings/:id/respond.
+    respondedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    respondedAt: {
+      type: Date,
+      default: null,
     },
     // Rating given by the learner (1-5)
     rating: {

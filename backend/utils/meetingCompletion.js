@@ -4,6 +4,7 @@ import SessionDispute from '../models/SessionDispute.js';
 import { CreditTransaction } from '../models/Credit.js';
 import { getOrCreateWallet, notifyIfCrossedLowBalance, spendCredits, addEarnedCredits } from './wallet.js';
 import { CREDITS_PER_TEACHING_SESSION, CREDITS_PER_LEARNING_SESSION } from '../config/sessionCreditRates.js';
+import { notifyUser } from './notify.js';
 
 // How long either participant has to report a no-show before credits finalize.
 const DISPUTE_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -25,6 +26,30 @@ export function getSessionRoles(meeting) {
     ? meeting.createdBy
     : meeting.participants.find((p) => String(p) !== String(meeting.createdBy));
   return { teacherId, learnerId };
+}
+
+/**
+ * Hands a free trial back when the session it was booked for never happened
+ * because the other side declined or never answered.
+ *
+ * The trial is claimed at booking time so two concurrent requests can't both
+ * spend it. That is right for a session that goes ahead or is cancelled by the
+ * person who booked it - but losing your one free trial because a teacher
+ * ignored the request is not a cost you chose, and it is the single worst
+ * moment to lose it, since the trial exists to get someone through their first
+ * session at all.
+ *
+ * Only returns a trial that is still marked used, and clears the flag on the
+ * meeting so a repeated sweep cannot hand out a second one.
+ */
+export async function releaseFreeTrialIfUnused(meeting) {
+  if (!meeting.isFreeTrialSession) return;
+
+  await User.findByIdAndUpdate(meeting.createdBy, { freeTrialSessionUsed: false });
+  meeting.isFreeTrialSession = false;
+  meeting.creditsProcessed = true;
+  meeting.creditsNote = 'Session never took place - free trial returned.';
+  await meeting.save();
 }
 
 export async function updateUserStatsForMeeting(meeting) {
@@ -174,10 +199,38 @@ export async function finalizeDueMeetingCredits() {
   }
 }
 
-// Runs both steps in order - used both by the periodic cron job and as a
+// Step 0: a session request nobody answered before its start time is over.
+//
+// It never became 'scheduled', so markExpiredMeetingsCompleted below never sees
+// it and no credits were ever at stake - this exists to stop it sitting in the
+// list as "pending" forever, and to give back a free trial that was spent on a
+// session that never happened.
+export async function expirePendingMeetings() {
+  const now = new Date();
+  const candidates = await Meeting.find({ status: 'pending', startsAt: { $lte: now } });
+
+  for (const meeting of candidates) {
+    meeting.status = 'expired';
+    await meeting.save();
+    await releaseFreeTrialIfUnused(meeting);
+
+    for (const participantId of meeting.participants.map(String)) {
+      notifyUser({
+        userId: participantId,
+        type: 'meeting_expired',
+        title: 'Session request expired',
+        body: `"${meeting.title}" was never accepted, so it did not go ahead.`,
+        link: '/meetings/history',
+      });
+    }
+  }
+}
+
+// Runs the steps in order - used both by the periodic cron job and as a
 // fast-path when a user's own GET /meetings loads, so completion/finalization
 // doesn't wait on the cron tick for the person actually looking at the page.
 export async function runMeetingCompletionSweep() {
+  await expirePendingMeetings();
   await markExpiredMeetingsCompleted();
   await finalizeDueMeetingCredits();
 }

@@ -220,7 +220,25 @@ io.on('connection', (socket) => {
       await conv.save();
 
       const populated = await Message.findById(message._id).populate('sender', 'name email avatar');
-      io.to(`conv:${conversationId}`).emit('newMessage', { message: populated });
+
+      // Delivered to each participant's PERSONAL room, not just `conv:<id>`.
+      //
+      // A socket only joins `conv:<id>` when that exact conversation is open on
+      // screen (see joinConversation above, emitted from ChatMessages). So
+      // broadcasting only there meant the recipient received nothing unless
+      // they happened to be looking at this very chat - no new bubble, no
+      // unread badge, nothing until they reloaded. ChatPage has carried a
+      // "global listener for new messages to update unread counts for closed
+      // conversations" the whole time; it simply never fired, because the event
+      // never reached that socket.
+      //
+      // The personal room is joined on connect and needs no bookkeeping, so it
+      // also survives a reconnect - conversation rooms do not, which is the
+      // other way messages used to stop arriving mid-session.
+      for (const participantId of conv.participants.map(String)) {
+        io.to(`user:${participantId}`).emit('newMessage', { message: populated });
+      }
+
       if (ack) ack({ ok: true, message: populated });
 
       const recipients = conv.participants.map(String).filter((p) => p !== String(userId));
@@ -237,6 +255,34 @@ io.on('connection', (socket) => {
       if (ack) ack({ ok: false, error: err.message });
     }
   });
+
+  // Typing indicator. Relayed, never stored - if nobody is looking at the
+  // conversation right now there is nothing worth delivering later, which is
+  // exactly why this uses the conversation room while newMessage does not.
+  //
+  // The membership check is the same one sendMessage does: without it anyone
+  // could make a typing indicator appear in a conversation they are not part
+  // of, just by guessing an id.
+  const relayTyping = (event) => async ({ conversationId }) => {
+    try {
+      if (!conversationId || !userId) return;
+      const conv = await Conversation.findById(conversationId).select('participants');
+      if (!conv) return;
+      if (!conv.participants.map(String).includes(String(userId))) return;
+
+      // socket.to(...) excludes the sender, so you never see your own dots.
+      socket.to(`conv:${conversationId}`).emit(event, {
+        conversationId,
+        userId: String(userId),
+      });
+    } catch (err) {
+      // Non-fatal: a dropped typing event is invisible, and the stopTyping
+      // timeout on the client clears the indicator regardless.
+    }
+  };
+
+  socket.on('typing', relayTyping('userTyping'));
+  socket.on('stopTyping', relayTyping('userStoppedTyping'));
 
   socket.on('disconnect', async () => {
     if (!userId) return;

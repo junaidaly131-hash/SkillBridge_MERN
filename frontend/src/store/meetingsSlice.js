@@ -106,6 +106,20 @@ export const cancelMeeting = createAsyncThunk(
   }
 );
 
+// Accept or decline a session request. Only the invited participant can call
+// this - the server refuses the creator.
+export const respondToMeeting = createAsyncThunk(
+  'meetings/respond',
+  async ({ meetingId, decision }, { rejectWithValue }) => {
+    try {
+      const res = await apiClient.post(`/meetings/${meetingId}/respond`, { decision });
+      return res.data.meeting;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to respond to this request');
+    }
+  }
+);
+
 export const deleteMeeting = createAsyncThunk(
   'meetings/delete',
   async (meetingId, { rejectWithValue }) => {
@@ -139,6 +153,41 @@ const meetingsSlice = createSlice({
     clearCurrentMeeting: (state) => {
       state.currentMeeting = null;
       state.currentMeetingError = null;
+    },
+    // A meeting arriving from someone else's action, over the socket. Used by
+    // the 'newMeeting' event so an invitation shows up for the invitee without
+    // a reload.
+    upsertMeeting: (state, action) => {
+      const incoming = action.payload;
+      if (!incoming?._id) return;
+      const i = state.meetings.findIndex((m) => String(m._id) === String(incoming._id));
+      if (i >= 0) state.meetings[i] = incoming;
+      else state.meetings.push(incoming);
+      state.meetings.sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+    },
+    // The 'meetingUpdated' event carries only what changed, so this patches in
+    // place rather than replacing - and drops the meeting from the upcoming
+    // list once it reaches a state that is no longer upcoming.
+    applyMeetingStatus: (state, action) => {
+      const { id, status, respondedAt } = action.payload || {};
+      if (!id) return;
+
+      const patch = (list) => {
+        const m = list.find((x) => String(x._id) === String(id));
+        if (m) {
+          m.status = status;
+          if (respondedAt) m.respondedAt = respondedAt;
+        }
+      };
+      patch(state.meetings);
+      patch(state.history);
+
+      if (!['pending', 'scheduled'].includes(status)) {
+        state.meetings = state.meetings.filter((m) => String(m._id) !== String(id));
+      }
+      if (state.currentMeeting && String(state.currentMeeting._id) === String(id)) {
+        state.currentMeeting.status = status;
+      }
     },
   },
   extraReducers: (builder) => {
@@ -185,6 +234,20 @@ const meetingsSlice = createSlice({
       .addCase(cancelMeeting.fulfilled, (s, a) => {
         s.meetings = s.meetings.filter(m => m._id !== a.payload._id);
       })
+      // An accepted request stays in the list with its new status; a declined
+      // one is no longer upcoming and drops out.
+      .addCase(respondToMeeting.fulfilled, (s, a) => {
+        const updated = a.payload;
+        if (!updated?._id) return;
+        if (updated.status === 'scheduled') {
+          const i = s.meetings.findIndex(m => String(m._id) === String(updated._id));
+          if (i >= 0) s.meetings[i] = updated;
+          else s.meetings.push(updated);
+          s.meetings.sort((x, y) => new Date(x.startsAt) - new Date(y.startsAt));
+        } else {
+          s.meetings = s.meetings.filter(m => String(m._id) !== String(updated._id));
+        }
+      })
       .addCase(deleteMeeting.fulfilled, (s, a) => {
         s.meetings = s.meetings.filter(m => m._id !== a.payload);
         s.history = s.history.filter(m => m._id !== a.payload);
@@ -204,7 +267,8 @@ const meetingsSlice = createSlice({
   },
 });
 
-export const { clearMeetingsError, clearCurrentMeeting } = meetingsSlice.actions;
+export const { clearMeetingsError, clearCurrentMeeting, upsertMeeting, applyMeetingStatus } =
+  meetingsSlice.actions;
 export default meetingsSlice.reducer;
 
 

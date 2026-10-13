@@ -4,9 +4,9 @@ import { useNavigate } from "react-router-dom";
 import CancelSessionModal from "../Modal/CancelSessionModal";
 import { useToast } from "../../ui/Toast";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchMeetings, cancelMeeting } from "../../store/meetingsSlice";
+import { fetchMeetings, cancelMeeting, respondToMeeting } from "../../store/meetingsSlice";
 import { fetchWallet } from "../../store/creditsSlice";
-import { getSocket } from "../../socket";
+import { getSocket, onConnected } from "../../socket";
 
 // A call can be joined starting this many minutes before its scheduled start.
 const JOIN_WINDOW_BEFORE_MINUTES = 10;
@@ -15,10 +15,12 @@ function SchedulePanel({ onScheduleClick }) {
   const [now, setNow] = useState(() => Date.now());
   const [cancellingId, setCancellingId] = useState(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [respondingId, setRespondingId] = useState(null);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const toast = useToast();
   const { meetings } = useSelector((s) => s.meetings);
+  const { user } = useSelector((s) => s.auth);
   const { wallet } = useSelector((s) => s.credits);
 
   useEffect(() => {
@@ -31,9 +33,18 @@ function SchedulePanel({ onScheduleClick }) {
   // does, otherwise this panel would stay stale until the next full reload.
   useEffect(() => {
     const socket = getSocket();
-    const onNewMeeting = () => dispatch(fetchMeetings());
-    socket.on("newMeeting", onNewMeeting);
-    return () => socket.off("newMeeting", onNewMeeting);
+    const resync = () => dispatch(fetchMeetings());
+    socket.on("newMeeting", resync);
+    // Someone accepting, declining or withdrawing a request changes this list
+    // too, and that happens in their browser, not this one.
+    socket.on("meetingUpdated", resync);
+    // A reconnect may have missed events entirely while the socket was down.
+    const unsubscribe = onConnected(resync);
+    return () => {
+      socket.off("newMeeting", resync);
+      socket.off("meetingUpdated", resync);
+      unsubscribe();
+    };
   }, [dispatch]);
 
   // Re-check join-window eligibility periodically so the "Join" button enables
@@ -44,12 +55,19 @@ function SchedulePanel({ onScheduleClick }) {
   }, []);
 
   const upcomingReminders = useMemo(() => {
+    const meId = user?.id;
     return (meetings || []).slice(0, 10).map((m) => {
-      const other = (m.participants || []).find((p) => String(p._id || p.id) !== String(m.createdBy));
+      // The other person is whoever isn't me. This used to be "whoever isn't
+      // the creator", which named the wrong person on every session you were
+      // invited to - it showed you your own name.
+      const other = (m.participants || []).find((p) => String(p._id || p.id) !== String(meId));
       const startsAtMs = new Date(m.startsAt).getTime();
       const endsAtMs = startsAtMs + (m.duration || 60) * 60 * 1000;
       const joinOpensAtMs = startsAtMs - JOIN_WINDOW_BEFORE_MINUTES * 60 * 1000;
-      const canJoin = now >= joinOpensAtMs && now <= endsAtMs;
+
+      const isPending = m.status === "pending";
+      // Only the invited side can answer; the sender is just waiting.
+      const awaitingMyAnswer = isPending && String(m.createdBy) !== String(meId);
 
       return {
         id: m._id,
@@ -58,10 +76,29 @@ function SchedulePanel({ onScheduleClick }) {
         person: other?.name || "Participant",
         skill: m.skill,
         sessionType: m.sessionType,
-        canJoin,
+        isPending,
+        awaitingMyAnswer,
+        // An unaccepted request has nothing to join - the server refuses to
+        // mint a call token for it either way.
+        canJoin: !isPending && now >= joinOpensAtMs && now <= endsAtMs,
       };
     });
-  }, [meetings, now]);
+  }, [meetings, now, user]);
+
+  const handleRespond = async (meetingId, decision) => {
+    setRespondingId(meetingId);
+    try {
+      await dispatch(respondToMeeting({ meetingId, decision })).unwrap();
+      toast.success(decision === "accept" ? "Session confirmed." : "Request declined.");
+    } catch (err) {
+      toast.error(err || "Couldn't send your answer");
+      // The request may have been withdrawn or have expired while this row was
+      // on screen, so resync rather than leaving a button that cannot work.
+      dispatch(fetchMeetings());
+    } finally {
+      setRespondingId(null);
+    }
+  };
 
   const handleConfirmCancel = async () => {
     if (!cancellingId) return;
@@ -122,6 +159,12 @@ function SchedulePanel({ onScheduleClick }) {
                   onClick={() => {
                     if (reminder.canJoin) {
                       navigate(`/meetings/${reminder.id}/call`);
+                    } else if (reminder.isPending) {
+                      toast.info(
+                        reminder.awaitingMyAnswer
+                          ? "Accept this request to put it in your schedule."
+                          : `Waiting for ${reminder.person} to accept.`
+                      );
                     } else {
                       toast.info(`You can join this call ${JOIN_WINDOW_BEFORE_MINUTES} minutes before it starts.`);
                     }
@@ -143,6 +186,11 @@ function SchedulePanel({ onScheduleClick }) {
                           {reminder.sessionType === "teaching" ? "Teaching" : "Learning"}
                         </span>
                       )}
+                      {reminder.isPending && (
+                        <span className="text-xs px-2 py-0.5 rounded-full shrink-0 bg-amber-100 text-amber-700">
+                          {reminder.awaitingMyAnswer ? "Needs your answer" : "Awaiting reply"}
+                        </span>
+                      )}
                     </div>
                     <p className="font-family-poppins text-xs text-gray mt-1">
                       {reminder.date}
@@ -154,6 +202,30 @@ function SchedulePanel({ onScheduleClick }) {
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    {reminder.awaitingMyAnswer && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRespond(reminder.id, "accept");
+                          }}
+                          disabled={respondingId === reminder.id}
+                          className="text-xs font-semibold text-white bg-teal-button hover:bg-teal-button-hover px-2.5 py-1.5 rounded-lg disabled:opacity-50"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRespond(reminder.id, "decline");
+                          }}
+                          disabled={respondingId === reminder.id}
+                          className="text-xs font-semibold text-gray hover:text-red-600 px-2 py-1.5 rounded-lg disabled:opacity-50"
+                        >
+                          Decline
+                        </button>
+                      </>
+                    )}
                     {reminder.canJoin && (
                       <span className="flex items-center gap-1 text-xs font-semibold text-teal bg-teal/10 px-2.5 py-1.5 rounded-lg">
                         <Video size={14} />

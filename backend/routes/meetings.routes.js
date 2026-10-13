@@ -9,7 +9,7 @@ import { sendMeetingInviteEmail } from '../utils/emailService.js';
 import { generateJaasToken } from '../utils/jaasToken.js';
 import { notifyUser } from '../utils/notify.js';
 import SessionDispute from '../models/SessionDispute.js';
-import { getSessionRoles, runMeetingCompletionSweep } from '../utils/meetingCompletion.js';
+import { getSessionRoles, runMeetingCompletionSweep, releaseFreeTrialIfUnused } from '../utils/meetingCompletion.js';
 import { getOrCreateWallet } from '../utils/wallet.js';
 import { CREDITS_PER_LEARNING_SESSION } from '../config/sessionCreditRates.js';
 import {
@@ -35,6 +35,35 @@ function makeJitsiRoomName() {
   return `skillbridge-${crypto.randomBytes(16).toString('hex')}`;
 }
 
+// Pushes a meeting's new state to both participants so their Session History
+// and SchedulePanel update without a reload - the same reason POST /meetings
+// emits 'newMeeting'.
+function emitMeetingUpdate(req, meeting) {
+  const io = req.app.get('io');
+  if (!io) return;
+  for (const participantId of meeting.participants.map(String)) {
+    io.to(`user:${participantId}`).emit('meetingUpdated', {
+      meeting: {
+        id: String(meeting._id),
+        status: meeting.status,
+        respondedAt: meeting.respondedAt,
+      },
+    });
+  }
+}
+
+// First meeting in `meetings` whose time range overlaps [startMs, endMs).
+// Shared by booking and by accepting, so the two can't drift on what counts
+// as a clash.
+function findOverlap(meetings, startMs, endMs, { excludeId } = {}) {
+  return meetings.find((m) => {
+    if (excludeId && String(m._id) === String(excludeId)) return false;
+    const existStart = m.startsAt.getTime();
+    const existEnd = existStart + (m.duration || 60) * 60 * 1000;
+    return startMs < existEnd && existStart < endMs;
+  });
+}
+
 // List meetings for current user (upcoming first, auto-cleanup expired)
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -45,10 +74,12 @@ router.get('/', authenticateToken, async (req, res) => {
     // jobs/completeMeetings.js - this is just a fast-path for the caller).
     await runMeetingCompletionSweep();
 
-    // Only return scheduled (upcoming) meetings
+    // Upcoming meetings, plus requests still waiting on an answer - the
+    // invitee has to be able to see one in order to accept it, and the sender
+    // needs to see that it is still unanswered rather than booked.
     const meetings = await Meeting.find({
       participants: userId,
-      status: 'scheduled',
+      status: { $in: ['pending', 'scheduled'] },
     })
       .populate('participants', 'name email avatar')
       .sort({ startsAt: 1 })
@@ -126,6 +157,20 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const requester = meeting.participants.find((p) => String(p._id) === String(userId));
     if (!requester) {
       return res.status(403).json({ message: 'Not allowed' });
+    }
+
+    // No token for a session that is not actually on. A JaaS token is the key
+    // to the room, so minting one for a request still waiting on an answer -
+    // or one that was declined or expired - would let the call happen anyway
+    // and make the acceptance step cosmetic.
+    if (!['scheduled', 'completed'].includes(meeting.status)) {
+      return res.status(409).json({
+        code: 'MEETING_NOT_CONFIRMED',
+        message:
+          meeting.status === 'pending'
+            ? 'This session has not been accepted yet.'
+            : `This session was ${meeting.status}.`,
+      });
     }
 
     // JaaS room names are namespaced under the App ID: "<AppID>/<room>". Prepend it
@@ -245,19 +290,23 @@ router.post('/', authenticateToken, async (req, res) => {
       }
     }
 
-    // Prevent double-booking: neither party may already have another
-    // scheduled session whose time range overlaps this one.
+    // Prevent double-booking: neither party may already have another session
+    // whose time range overlaps this one.
+    //
+    // 'pending' counts as well as 'scheduled'. An invitation nobody has
+    // answered yet is still a claim on that slot, and leaving it out would let
+    // several people queue up invitations for the same hour, each of which the
+    // teacher could then accept.
     const proposedStart = new Date(startsAt).getTime();
     const proposedEnd = proposedStart + (duration || 60) * 60 * 1000;
-    const candidateMeetings = await Meeting.find({
-      status: 'scheduled',
-      participants: { $in: [userId, otherUserId] },
-    });
-    const conflict = candidateMeetings.find((m) => {
-      const existStart = m.startsAt.getTime();
-      const existEnd = existStart + (m.duration || 60) * 60 * 1000;
-      return proposedStart < existEnd && existStart < proposedEnd;
-    });
+    const conflict = findOverlap(
+      await Meeting.find({
+        status: { $in: ['pending', 'scheduled'] },
+        participants: { $in: [userId, otherUserId] },
+      }),
+      proposedStart,
+      proposedEnd
+    );
     if (conflict) {
       const conflictIsCurrentUser = conflict.participants.map(String).includes(String(userId));
       return res.status(409).json({
@@ -311,7 +360,13 @@ router.post('/', authenticateToken, async (req, res) => {
         joinUrl,
         sessionType,
         skill: skill?.trim() || null,
-        status: 'scheduled',
+        // Not 'scheduled'. One person picking a time is an invitation, not an
+        // agreement - and this session will move credits off the learner and
+        // onto the teacher once its hour passes. It used to do that whether or
+        // not the other side had ever opened the app, let alone agreed, so a
+        // booking made against someone who was offline still charged for a
+        // session that never happened. Nothing runs until they answer.
+        status: 'pending',
         isFreeTrialSession,
       });
     } catch (createError) {
@@ -337,12 +392,16 @@ router.post('/', authenticateToken, async (req, res) => {
         minute: '2-digit',
       });
 
-      const meetingMessage = `📅 Meeting Scheduled!\n\n` +
+      // Worded as a request, not a confirmation. The link is left out
+      // deliberately: there is nothing to join until the other side accepts,
+      // and a join link in the bubble was what made an unanswered invitation
+      // look like a booked session.
+      const meetingMessage = `📅 Session Request\n\n` +
         `📌 ${title.trim()}\n` +
         `🕐 ${meetingDate}\n` +
         `⏱️ Duration: ${duration || 60} minutes\n` +
         `${skill ? `📚 Skill: ${skill}\n` : ''}` +
-        `\n🔗 Join Meeting: ${joinUrl}`;
+        `\nWaiting for ${other.name} to accept.`;
 
       const message = await Message.create({
         conversation: convId,
@@ -355,17 +414,25 @@ router.post('/', authenticateToken, async (req, res) => {
           joinUrl,
           startsAt: new Date(startsAt),
           duration: duration || 60,
+          // Lets the bubble render Accept/Decline for the right person without
+          // a second request. The bubble re-reads live status from the meetings
+          // store, so this is only the starting point.
+          status: 'pending',
+          invitedUserId: String(otherUserId),
         },
       });
 
       // Update conversation's last message
       await Conversation.findByIdAndUpdate(convId, { lastMessage: message._id });
 
-      // Emit socket event for real-time update (will be picked up by connected clients)
+      // Same personal-room delivery as a normal chat message - see the
+      // sendMessage handler in server.js for why `conv:` alone is not enough.
       const io = req.app.get('io');
       if (io) {
         const populatedMessage = await Message.findById(message._id).populate('sender', 'name email avatar');
-        io.to(`conv:${convId}`).emit('newMessage', { message: populatedMessage });
+        for (const participantId of [String(userId), String(otherUserId)]) {
+          io.to(`user:${participantId}`).emit('newMessage', { message: populatedMessage });
+        }
       }
     }
 
@@ -397,14 +464,129 @@ router.post('/', authenticateToken, async (req, res) => {
     if (creator?.name) {
       notifyUser({
         userId: otherUserId,
-        type: 'meeting_confirmed',
-        title: `${creator.name} scheduled a session with you`,
-        body: `${title.trim()} - ${new Date(startsAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}`,
-        link: `/meetings/${meeting._id}/call`,
+        type: 'meeting_invite',
+        title: `${creator.name} wants to schedule a session`,
+        body: `${title.trim()} - ${new Date(startsAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. Accept or decline.`,
+        // Not the call link: there is no call to join until it is accepted.
+        link: '/meetings/history',
       });
     }
 
     res.status(201).json({ success: true, meeting: populated });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+/**
+ * Accept or decline a session request.
+ *
+ * Only the invited participant may answer - the person who created the meeting
+ * cannot agree on the other's behalf, which is the whole point of this step.
+ */
+router.post('/:id/respond', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { decision } = req.body;
+
+    if (!['accept', 'decline'].includes(decision)) {
+      return res.status(400).json({ message: "decision must be 'accept' or 'decline'" });
+    }
+
+    const meeting = await Meeting.findById(req.params.id);
+    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+
+    if (!meeting.participants.map(String).includes(String(userId))) {
+      return res.status(403).json({ message: 'Not allowed' });
+    }
+    if (String(meeting.createdBy) === String(userId)) {
+      return res.status(403).json({
+        message: 'You created this request - the other person needs to accept it.',
+      });
+    }
+    if (meeting.status !== 'pending') {
+      return res.status(409).json({
+        message: `This request has already been ${meeting.status === 'scheduled' ? 'accepted' : meeting.status}.`,
+      });
+    }
+    if (meeting.startsAt.getTime() <= Date.now()) {
+      return res.status(409).json({ message: 'This session was due to start already.' });
+    }
+
+    const creator = await User.findById(meeting.createdBy).select('name email');
+
+    if (decision === 'decline') {
+      meeting.status = 'declined';
+      meeting.respondedBy = userId;
+      meeting.respondedAt = new Date();
+      await meeting.save();
+
+      // The booker never got a session, so the trial goes back. Same for an
+      // invitation that simply times out (see expirePendingMeetings). Only a
+      // cancellation after both sides agreed still spends it - by then the
+      // other person had set the time aside.
+      await releaseFreeTrialIfUnused(meeting);
+
+      notifyUser({
+        userId: String(meeting.createdBy),
+        type: 'meeting_declined',
+        title: 'Session request declined',
+        body: `Your request for "${meeting.title}" was declined.`,
+        link: '/meetings/history',
+      });
+      emitMeetingUpdate(req, meeting);
+
+      return res.json({ success: true, meeting });
+    }
+
+    // Accepting: re-check the slot. The invitation may have sat unanswered
+    // while either side agreed to something else at the same hour, and that
+    // other booking is the one that already counts.
+    const start = meeting.startsAt.getTime();
+    const end = start + (meeting.duration || 60) * 60 * 1000;
+    const conflict = findOverlap(
+      await Meeting.find({
+        status: 'scheduled',
+        participants: { $in: meeting.participants },
+      }),
+      start,
+      end,
+      { excludeId: meeting._id }
+    );
+    if (conflict) {
+      return res.status(409).json({
+        message: 'That time no longer works - one of you has another session booked over it.',
+      });
+    }
+
+    meeting.status = 'scheduled';
+    meeting.respondedBy = userId;
+    meeting.respondedAt = new Date();
+    await meeting.save();
+
+    notifyUser({
+      userId: String(meeting.createdBy),
+      type: 'meeting_confirmed',
+      title: 'Session confirmed',
+      body: `"${meeting.title}" on ${meeting.startsAt.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} was accepted.`,
+      link: `/meetings/${meeting._id}/call`,
+    });
+
+    if (creator?.email) {
+      sendMeetingInviteEmail(creator.email, creator.name, {
+        title: meeting.title,
+        startsAt: meeting.startsAt,
+        duration: meeting.duration,
+        skill: meeting.skill,
+        joinUrl: meeting.joinUrl,
+        organizerName: 'SkillBridge',
+      }).catch((err) => console.error('Failed to send confirmation email:', err));
+    }
+
+    emitMeetingUpdate(req, meeting);
+
+    const populated = await Meeting.findById(meeting._id).populate('participants', 'name email avatar');
+    res.json({ success: true, meeting: populated });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -557,14 +739,25 @@ router.post('/:id/cancel', authenticateToken, async (req, res) => {
       return res.status(403).json({ message: 'Not allowed' });
     }
 
-    if (meeting.status !== 'scheduled') {
-      return res.status(400).json({ message: 'Can only cancel scheduled meetings' });
+    // 'pending' is allowed too, so the person who sent a request can withdraw
+    // it instead of having to wait for it to expire.
+    if (!['scheduled', 'pending'].includes(meeting.status)) {
+      return res.status(400).json({ message: 'Can only cancel an upcoming session' });
     }
+
+    const wasPending = meeting.status === 'pending';
 
     meeting.status = 'cancelled';
     meeting.cancelledBy = userId;
     meeting.cancelledAt = new Date();
     await meeting.save();
+
+    // Withdrawing a request nobody accepted gives the free trial back - the
+    // other side never set time aside for it. Cancelling an agreed session
+    // still spends it, which is the existing behaviour.
+    if (wasPending) {
+      await releaseFreeTrialIfUnused(meeting);
+    }
 
     const { teacherId, learnerId } = getSessionRoles(meeting);
     const canceller = await User.findById(userId).select('name');
@@ -579,6 +772,8 @@ router.post('/:id/cancel', authenticateToken, async (req, res) => {
         link: '/chat',
       });
     }
+
+    emitMeetingUpdate(req, meeting);
 
     res.json({ success: true, meeting });
   } catch (error) {
