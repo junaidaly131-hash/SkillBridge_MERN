@@ -153,6 +153,7 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
   const emojiPickerRef = useRef(null);
   const reactionPickerRef = useRef(null);
   const messageMenuRef = useRef(null);
+  const editFieldRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesScrollRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -344,6 +345,20 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
     if (!list || !anchorEl) return false;
     return anchorEl.getBoundingClientRect().top - list.getBoundingClientRect().top < MENU_CLEARANCE;
   };
+
+  // Focus the edit field with the caret AFTER the text, not before it.
+  // autoFocus alone leaves it at position 0, so you start typing in front of
+  // your own message - which is the opposite of what editing a typo needs.
+  // Keyed on editingId rather than editText so it only runs when the dialog
+  // opens, and never fights the caret while someone is typing.
+  useEffect(() => {
+    if (!editingId) return;
+    const field = editFieldRef.current;
+    if (!field) return;
+    field.focus();
+    const end = field.value.length;
+    field.setSelectionRange(end, end);
+  }, [editingId]);
 
   const handleCopy = async (text) => {
     setMenuForId(null);
@@ -1251,8 +1266,8 @@ function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedule
 
             <div className="flex items-end gap-2 px-4 py-3 border-t border-[#E5E5E5]">
               <textarea
+                ref={editFieldRef}
                 value={editText}
-                autoFocus
                 rows={1}
                 onChange={(e) => setEditText(e.target.value)}
                 onKeyDown={(e) => {
