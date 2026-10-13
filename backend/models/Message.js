@@ -38,6 +38,22 @@ const messageSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    // Set the first time the sender edits the text. Its presence is what the
+    // bubble shows "edited" from - the original text is not kept, since this is
+    // a correction tool rather than an audit trail.
+    editedAt: {
+      type: Date,
+      default: null,
+    },
+    // One entry per (user, emoji). A person may react with several different
+    // emoji; reacting with the same one again removes it.
+    reactions: [
+      {
+        _id: false,
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        emoji: { type: String, required: true },
+      },
+    ],
   },
   { timestamps: true }
 );

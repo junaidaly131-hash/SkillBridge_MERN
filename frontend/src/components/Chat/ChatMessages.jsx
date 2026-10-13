@@ -1,8 +1,19 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Phone, MoreVertical, Send, Smile, ArrowLeft, Trash2, CalendarPlus, Paperclip, FileText, Download, Loader2, MessageCircle, Wallet, Flag, Ban, ShieldCheck, Check, CheckCheck, Video } from "lucide-react";
+import { Phone, MoreVertical, Send, Smile, ArrowLeft, Trash2, CalendarPlus, Paperclip, FileText, Download, Loader2, MessageCircle, Wallet, Flag, Ban, ShieldCheck, Check, CheckCheck, Video, Pencil, SmilePlus, Archive, ArchiveRestore, X as XIcon } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { fetchMessages, upsertMessage, replaceMessage, markConversationAsRead, deleteConversation, sendAttachment } from "../../store/chatSlice";
+import {
+  fetchMessages,
+  fetchConversations,
+  upsertMessage,
+  replaceMessage,
+  markConversationAsRead,
+  deleteConversation,
+  sendAttachment,
+  setConversationArchived,
+  editMessage,
+  toggleReaction,
+} from "../../store/chatSlice";
 import { fetchMeetings, respondToMeeting } from "../../store/meetingsSlice";
 import { blockUser, unblockUser, reportUser } from "../../store/profileSlice";
 import { getSocket, onConnected } from "../../socket";
@@ -32,6 +43,32 @@ function formatFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Mirrors backend/config/chat.js. Kept in step by the server, which rejects
+// anything outside the list and anything past the window - this copy only
+// decides what the UI offers.
+const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Collapses a message's reaction rows into one entry per emoji.
+ *
+ * Reactions are stored one per (user, emoji) so they can be toggled
+ * individually; the bubble wants "😂 3" with the button lit if you are one of
+ * the three.
+ */
+function groupReactions(reactions, meId) {
+  const byEmoji = new Map();
+  for (const r of reactions || []) {
+    const current = byEmoji.get(r.emoji) || { emoji: r.emoji, count: 0, mine: false, names: [] };
+    current.count += 1;
+    if (String(r.user?._id || r.user) === String(meId)) current.mine = true;
+    if (r.user?.name) current.names.push(r.user.name);
+    byEmoji.set(r.emoji, current);
+  }
+  // Most-reacted first, so the bubble doesn't reshuffle as counts change.
+  return [...byEmoji.values()].sort((a, b) => b.count - a.count);
 }
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
@@ -95,7 +132,7 @@ function getMeetingInviteState(metadata, now, { liveMeeting, meetingsLoaded, meI
   };
 }
 
-function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
+function ChatMessages({ chat, onBack, onDeleted, onScheduleClick, onOpenSchedulePanel }) {
   const [message, setMessage] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -111,6 +148,7 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
   const stopTypingRef = useRef(null);
   const menuRef = useRef(null);
   const emojiPickerRef = useRef(null);
+  const reactionPickerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesScrollRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -127,6 +165,10 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
   const { meetings } = useSelector((state) => state.meetings);
   const [meetingsLoaded, setMeetingsLoaded] = useState(false);
   const [respondingMeetingId, setRespondingMeetingId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
+  // Which message has its reaction picker open, if any.
+  const [reactingToId, setReactingToId] = useState(null);
 
   const otherUserId = chat?.otherUserId;
   const isBlocked = Boolean(
@@ -181,6 +223,12 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
     if (diffDays < 7) return `Last seen ${diffDays} days ago`;
     return `Last seen ${lastSeenTime.toLocaleDateString()}`;
   };
+
+  // Switching chats closes anything half-open from the previous one.
+  useEffect(() => {
+    setEditingId(null);
+    setReactingToId(null);
+  }, [conversationId]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -256,6 +304,54 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
     };
   }, [dispatch]);
 
+  const handleStartEdit = (msg) => {
+    setEditingId(msg._id);
+    setEditText(msg.text || "");
+    setReactingToId(null);
+  };
+
+  const handleSaveEdit = async () => {
+    const text = editText.trim();
+    if (!text || !editingId) return;
+
+    // Nothing changed - close without a pointless request that would still
+    // stamp the message "edited".
+    const original = messages.find((m) => String(m._id) === String(editingId));
+    if (original && original.text === text) {
+      setEditingId(null);
+      return;
+    }
+
+    try {
+      await dispatch(editMessage({ conversationId, messageId: editingId, text })).unwrap();
+      setEditingId(null);
+    } catch (err) {
+      toast.error(err || "Couldn't edit that message");
+    }
+  };
+
+  const handleToggleReaction = async (messageId, emoji) => {
+    setReactingToId(null);
+    try {
+      await dispatch(toggleReaction({ conversationId, messageId, emoji })).unwrap();
+    } catch (err) {
+      toast.error(err || "Couldn't add that reaction");
+    }
+  };
+
+  const handleToggleArchive = async () => {
+    setShowMenu(false);
+    try {
+      await dispatch(
+        setConversationArchived({ conversationId, archived: !chat?.archived })
+      ).unwrap();
+      toast.success(chat?.archived ? "Moved back to your inbox." : "Chat archived.");
+      dispatch(fetchConversations());
+    } catch (err) {
+      toast.error(err || "Couldn't update this chat");
+    }
+  };
+
   const handleRespondToInvite = async (meetingId, decision) => {
     setRespondingMeetingId(meetingId);
     try {
@@ -303,6 +399,15 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
         status: isRead ? "read" : isDelivered ? "delivered" : "sent",
         isAttachment: m.messageType === "attachment",
         attachment: m.messageType === "attachment" ? m.metadata : null,
+        editedAt: m.editedAt || null,
+        canEdit:
+          isOwn &&
+          (m.messageType || "text") === "text" &&
+          !String(m._id).startsWith("tmp-") &&
+          now - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS,
+        // Grouped so each emoji shows once with a count, and so the button can
+        // be highlighted when this user is one of the people who reacted.
+        reactions: groupReactions(m.reactions, meId),
         isMeetingInvite: m.messageType === "meeting_invite",
         meetingInvite:
           m.messageType === "meeting_invite"
@@ -462,10 +567,16 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
     }
   };
 
-  const confirmDelete = () => {
-    dispatch(deleteConversation(conversationId));
+  const confirmDelete = async () => {
     setShowDeleteConfirm(false);
-    onBack?.();
+    try {
+      await dispatch(deleteConversation(conversationId)).unwrap();
+      // Tells the page to drop its selection - this pane is now showing a
+      // conversation the user no longer has.
+      onDeleted?.();
+    } catch (err) {
+      toast.error(err || "Couldn't delete this chat");
+    }
   };
 
   // Close menu when clicking outside
@@ -476,6 +587,12 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
       }
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
         setShowEmojiPicker(false);
+      }
+      // The picker sits inside the hover-actions wrapper, which also holds the
+      // button that opens it - so a click on that button lands inside the ref
+      // and is left alone, and anything else closes it.
+      if (reactionPickerRef.current && !reactionPickerRef.current.parentElement?.contains(event.target)) {
+        setReactingToId(null);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -576,6 +693,13 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
                   {isBlocked ? "Unblock User" : "Block User"}
                 </button>
                 <button
+                  onClick={handleToggleArchive}
+                  className="w-full px-4 py-2 text-left text-sm text-black hover:bg-gray-50 flex items-center gap-2 font-family-poppins"
+                >
+                  {chat?.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                  {chat?.archived ? "Move to Inbox" : "Archive Chat"}
+                </button>
+                <button
                   onClick={handleDeleteChat}
                   className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-family-poppins"
                 >
@@ -618,7 +742,7 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
         {!isLoadingMessages && displayMessages.map((msg) => (
           <div
             key={msg._id}
-            className={`flex ${msg.isOwn ? "justify-end" : "justify-start"}`}
+            className={`group flex ${msg.isOwn ? "justify-end" : "justify-start"}`}
           >
             <div
               className={`max-w-[70%] rounded-2xl px-4 py-3 shadow-sm ${
@@ -657,6 +781,44 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
                     <Download className="text-gray shrink-0" size={16} />
                   </a>
                 )
+              ) : editingId === msg._id ? (
+                <div className="flex flex-col gap-2 min-w-50">
+                  <textarea
+                    value={editText}
+                    autoFocus
+                    rows={2}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSaveEdit();
+                      }
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                    className={`w-full rounded-lg px-2 py-1.5 font-family-poppins text-sm outline-none resize-none ${
+                      msg.isOwn ? "bg-white/20 text-white placeholder-white/60" : "bg-light-gray text-black"
+                    }`}
+                  />
+                  <div className="flex items-center gap-2 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className={`font-family-poppins text-xs ${msg.isOwn ? "text-white/80" : "text-gray"}`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveEdit}
+                      disabled={!editText.trim()}
+                      className={`font-family-poppins text-xs font-semibold disabled:opacity-50 ${
+                        msg.isOwn ? "text-white" : "text-teal"
+                      }`}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <p className="font-family-poppins text-sm whitespace-pre-wrap">{linkifyText(msg.text)}</p>
               )}
@@ -730,11 +892,41 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
                   )}
                 </div>
               )}
+              {/* Reactions already left on this message. Clicking one you are
+                  part of removes yours; clicking another adds it. */}
+              {msg.reactions.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {msg.reactions.map((r) => (
+                    <button
+                      key={r.emoji}
+                      type="button"
+                      onClick={() => handleToggleReaction(msg._id, r.emoji)}
+                      title={r.names.join(", ")}
+                      className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs transition-all border ${
+                        r.mine
+                          ? msg.isOwn
+                            ? "bg-white/30 border-white/50 text-white"
+                            : "bg-teal/10 border-teal/40 text-teal"
+                          : msg.isOwn
+                            ? "bg-white/10 border-white/20 text-white/90"
+                            : "bg-gray-50 border-[#E5E5E5] text-gray"
+                      }`}
+                    >
+                      <span>{r.emoji}</span>
+                      <span className="font-family-poppins">{r.count}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div
                 className={`flex items-center justify-end gap-1 mt-1 ${
                   msg.isOwn ? "text-white/70" : "text-gray"
                 }`}
               >
+                {msg.editedAt && (
+                  <span className="font-family-poppins text-xs italic mr-0.5">edited</span>
+                )}
                 <span className="font-family-poppins text-xs">{msg.time}</span>
                 {msg.isOwn && (
                   msg.status === "sent" ? (
@@ -748,6 +940,53 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
                 )}
               </div>
             </div>
+
+            {/* Hover actions, outside the bubble so they never cover its text.
+                Always visible on touch, where there is no hover to reveal them. */}
+            {editingId !== msg._id && !String(msg._id).startsWith("tmp-") && (
+              <div
+                className={`relative flex items-center self-end pb-1 gap-0.5 ${
+                  msg.isOwn ? "order-first mr-1" : "ml-1"
+                } opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity`}
+              >
+                {msg.canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => handleStartEdit(msg)}
+                    aria-label="Edit message"
+                    className="p-1.5 rounded-full text-gray hover:text-black hover:bg-gray-100"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setReactingToId(reactingToId === msg._id ? null : msg._id)}
+                  aria-label="React to message"
+                  className="p-1.5 rounded-full text-gray hover:text-black hover:bg-gray-100"
+                >
+                  <SmilePlus size={14} />
+                </button>
+
+                {reactingToId === msg._id && (
+                  <div
+                    ref={reactionPickerRef}
+                    className="absolute bottom-full mb-1 z-20 flex items-center gap-0.5 bg-white border border-[#E5E5E5] rounded-full shadow-lg px-1.5 py-1"
+                  >
+                    {ALLOWED_REACTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => handleToggleReaction(msg._id, emoji)}
+                        className="text-base leading-none p-1 rounded-full hover:bg-gray-100 transition-colors"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
         {otherIsTyping && (
@@ -853,7 +1092,8 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
               Delete Conversation
             </h3>
             <p className="font-family-poppins text-sm text-gray mb-4">
-              Are you sure you want to delete this conversation? This action cannot be undone.
+              This clears the chat for you only — {chat?.name || "the other person"} keeps their
+              copy. If they message you again, the chat comes back with the new messages.
             </p>
             <div className="flex justify-end gap-3">
               <button

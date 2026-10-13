@@ -80,11 +80,52 @@ export const deleteConversation = createAsyncThunk(
   }
 );
 
+export const setConversationArchived = createAsyncThunk(
+  'chat/setArchived',
+  async ({ conversationId, archived }, { rejectWithValue }) => {
+    try {
+      await apiClient.post(`/chat/conversations/${conversationId}/archive`, { archived });
+      return { conversationId, archived };
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to update this chat');
+    }
+  }
+);
+
+export const editMessage = createAsyncThunk(
+  'chat/editMessage',
+  async ({ conversationId, messageId, text }, { rejectWithValue }) => {
+    try {
+      const res = await apiClient.patch(`/chat/messages/${messageId}`, { text });
+      return { conversationId, message: res.data.message };
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to edit message');
+    }
+  }
+);
+
+export const toggleReaction = createAsyncThunk(
+  'chat/toggleReaction',
+  async ({ conversationId, messageId, emoji }, { rejectWithValue }) => {
+    try {
+      const res = await apiClient.post(`/chat/messages/${messageId}/reactions`, { emoji });
+      return { conversationId, message: res.data.message };
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to react');
+    }
+  }
+);
+
 const chatSlice = createSlice({
   name: 'chat',
   initialState: {
     conversations: [],
     messagesByConversation: {},
+    // Who is currently typing, as { [conversationId]: true }. Lives here rather
+    // than in the open thread so the chat LIST can show it on a row the user is
+    // not looking at, which is the whole point of relaying typing to personal
+    // rooms (see server.js).
+    typingByConversation: {},
     loading: false,
     messagesLoading: false,
     error: null,
@@ -207,6 +248,24 @@ const chatSlice = createSlice({
         );
       }
     },
+    // Typing dots, keyed by conversation. Set from the socket and cleared
+    // either by the sender's stopTyping or by the receiver's own timeout, so a
+    // tab that closes mid-word doesn't leave the row stuck on "typing...".
+    setTyping: (state, action) => {
+      const { conversationId, typing } = action.payload;
+      if (typing) state.typingByConversation[conversationId] = true;
+      else delete state.typingByConversation[conversationId];
+    },
+    // One message replaced in place - an edit, or a reaction added or removed.
+    // Does not insert: an update for a message this client never loaded (one
+    // from before it cleared the chat, say) is nothing to show.
+    applyMessageUpdate: (state, action) => {
+      const { conversationId, message } = action.payload;
+      const list = state.messagesByConversation[conversationId];
+      if (!list) return;
+      const i = list.findIndex((m) => String(m._id) === String(message._id));
+      if (i >= 0) list[i] = message;
+    },
     setError: (state, action) => {
       state.error = action.payload;
     },
@@ -276,6 +335,26 @@ const chatSlice = createSlice({
       .addCase(deleteConversation.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+      .addCase(setConversationArchived.fulfilled, (state, action) => {
+        const { conversationId, archived } = action.payload;
+        const conv = state.conversations.find((c) => c._id === conversationId);
+        if (conv) conv.archived = archived;
+      })
+      .addCase(setConversationArchived.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+      // Edits and reactions both come back as the whole updated message. The
+      // socket broadcast carries it too, so whichever lands first wins and the
+      // other is a no-op - applyMessageUpdate replaces by id.
+      .addCase(editMessage.fulfilled, (state, action) => {
+        chatSlice.caseReducers.applyMessageUpdate(state, action);
+      })
+      .addCase(toggleReaction.fulfilled, (state, action) => {
+        chatSlice.caseReducers.applyMessageUpdate(state, action);
+      })
+      .addCase(toggleReaction.rejected, (state, action) => {
+        state.error = action.payload;
       });
   },
 });
@@ -284,6 +363,8 @@ export const {
   upsertMessage,
   replaceMessage,
   removeMessage,
+  setTyping,
+  applyMessageUpdate,
   markMessagesDelivered,
   markMessagesReadReceipt,
   updateUnreadCount,

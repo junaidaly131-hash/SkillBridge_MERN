@@ -11,9 +11,14 @@ import {
   updateUnreadCount,
   markMessagesDelivered,
   markMessagesReadReceipt,
+  setTyping,
+  applyMessageUpdate,
 } from "../store/chatSlice";
 import { setOnlineUsers, userWentOnline, userWentOffline } from "../store/presenceSlice";
 import { getSocket } from "../socket";
+
+// How long a row keeps showing "typing..." with no further signal.
+const TYPING_STALE_MS = 4000;
 
 function ChatPage() {
   const dispatch = useDispatch();
@@ -79,8 +84,42 @@ function ChatPage() {
     socket.on("onlineUsers", onOnlineUsers);
     socket.on("userOnline", onUserOnline);
     socket.on("userOffline", onUserOffline);
+    // Typing is relayed to personal rooms, so it arrives for every
+    // conversation - including ones not open - which is what lets the list row
+    // show it. Each conversation gets its own stale-timeout, because a tab that
+    // closes mid-word never sends stopTyping.
+    const typingTimers = {};
+    const onTyping = ({ conversationId }) => {
+      if (!conversationId) return;
+      dispatch(setTyping({ conversationId, typing: true }));
+      clearTimeout(typingTimers[conversationId]);
+      typingTimers[conversationId] = setTimeout(
+        () => dispatch(setTyping({ conversationId, typing: false })),
+        TYPING_STALE_MS
+      );
+    };
+    const onStoppedTyping = ({ conversationId }) => {
+      if (!conversationId) return;
+      clearTimeout(typingTimers[conversationId]);
+      dispatch(setTyping({ conversationId, typing: false }));
+    };
+
+    // An edit or a reaction from either side.
+    const onMessageUpdated = ({ message: msg }) => {
+      const conversationId = msg?.conversation?._id || msg?.conversation;
+      if (!conversationId) return;
+      dispatch(applyMessageUpdate({ conversationId, message: msg }));
+    };
+    // Editing the newest message changes the sidebar preview, which comes from
+    // the conversation list rather than the message store.
+    const onPreviewChanged = () => dispatch(fetchConversations());
+
     socket.on("messagesDelivered", onMessagesDelivered);
     socket.on("messagesRead", onMessagesRead);
+    socket.on("userTyping", onTyping);
+    socket.on("userStoppedTyping", onStoppedTyping);
+    socket.on("messageUpdated", onMessageUpdated);
+    socket.on("conversationPreviewChanged", onPreviewChanged);
 
     return () => {
       socket.off("onlineUsers", onOnlineUsers);
@@ -88,6 +127,11 @@ function ChatPage() {
       socket.off("userOffline", onUserOffline);
       socket.off("messagesDelivered", onMessagesDelivered);
       socket.off("messagesRead", onMessagesRead);
+      socket.off("userTyping", onTyping);
+      socket.off("userStoppedTyping", onStoppedTyping);
+      socket.off("messageUpdated", onMessageUpdated);
+      socket.off("conversationPreviewChanged", onPreviewChanged);
+      Object.values(typingTimers).forEach(clearTimeout);
     };
   }, [dispatch]);
 
@@ -136,6 +180,14 @@ function ChatPage() {
     setShowMobileChat(false);
   };
 
+  // Deleting clears the conversation for this user, so the thread pane must let
+  // go of it. Without this, `selectedChat` still pointed at the cleared
+  // conversation on desktop and the pane carried on showing it.
+  const handleDeleted = () => {
+    setSelectedChat(null);
+    setShowMobileChat(false);
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-hidden h-[calc(100vh-120px)] lg:h-[calc(100vh-144px)]">
       <div className="flex h-full">
@@ -161,6 +213,7 @@ function ChatPage() {
           <ChatMessages
             chat={selectedChat}
             onBack={handleBack}
+            onDeleted={handleDeleted}
             onScheduleClick={() => setScheduleModalOpen(true)}
             onOpenSchedulePanel={() => setSchedulePanelDrawerOpen(true)}
           />

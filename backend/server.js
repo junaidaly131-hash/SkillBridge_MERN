@@ -256,9 +256,14 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Typing indicator. Relayed, never stored - if nobody is looking at the
-  // conversation right now there is nothing worth delivering later, which is
-  // exactly why this uses the conversation room while newMessage does not.
+  // Typing indicator. Relayed, never stored.
+  //
+  // Sent to the other participants' PERSONAL rooms rather than the conversation
+  // room. The conversation room only contains people who have that chat open,
+  // which is precisely the wrong set: the chat list needs to show "typing..."
+  // on a row the user is NOT currently looking at. The event carries its
+  // conversationId so both the open thread and the list row can pick out the
+  // one they care about.
   //
   // The membership check is the same one sendMessage does: without it anyone
   // could make a typing indicator appear in a conversation they are not part
@@ -270,11 +275,14 @@ io.on('connection', (socket) => {
       if (!conv) return;
       if (!conv.participants.map(String).includes(String(userId))) return;
 
-      // socket.to(...) excludes the sender, so you never see your own dots.
-      socket.to(`conv:${conversationId}`).emit(event, {
-        conversationId,
-        userId: String(userId),
-      });
+      // Everyone except the sender, so you never see your own dots.
+      for (const participantId of conv.participants.map(String)) {
+        if (participantId === String(userId)) continue;
+        io.to(`user:${participantId}`).emit(event, {
+          conversationId: String(conversationId),
+          userId: String(userId),
+        });
+      }
     } catch (err) {
       // Non-fatal: a dropped typing event is invisible, and the stopTyping
       // timeout on the client clears the indicator regardless.
