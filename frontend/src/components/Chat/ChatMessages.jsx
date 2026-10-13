@@ -23,6 +23,9 @@ const TYPING_IDLE_MS = 1500;
 // At most one `typing` emit per this interval, so holding a key down doesn't
 // turn every character into a socket round trip.
 const TYPING_THROTTLE_MS = 2000;
+// Treat the view as "at the bottom" within this many pixels, so a few px of
+// sub-pixel drift doesn't read as the user having scrolled up.
+const NEAR_BOTTOM_PX = 120;
 
 function formatFileSize(bytes) {
   if (!bytes) return "";
@@ -109,6 +112,7 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
   const menuRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const messagesScrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -140,6 +144,15 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
   // Auto-scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Whether the view is already sitting at the latest message. Used to decide
+  // if the typing indicator is worth scrolling for - yanking someone back down
+  // while they are reading older messages is worse than them not seeing dots.
+  const isNearBottom = () => {
+    const el = messagesScrollRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
   };
 
   const isOtherOnline = Boolean(otherUserId && onlineUserIds.includes(String(otherUserId)));
@@ -268,6 +281,13 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // The typing bubble is appended after the last message, so without this it
+  // lands just below the visible area and is never seen - which is exactly how
+  // it looked: the dots were rendering, only off-screen.
+  useEffect(() => {
+    if (otherIsTyping && isNearBottom()) scrollToBottom();
+  }, [otherIsTyping]);
 
   const displayMessages = useMemo(() => {
     const meId = user?.id;
@@ -569,7 +589,7 @@ function ChatMessages({ chat, onBack, onScheduleClick, onOpenSchedulePanel }) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+      <div ref={messagesScrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
         {isLoadingMessages && (
           <div className="space-y-4 animate-pulse">
             {[
