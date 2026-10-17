@@ -78,7 +78,7 @@ uvicorn main:app --reload --port 8001
 
 ## 🌐 Production Deployment
 
-- **Frontend:** Vercel - https://skill-bridge-mern.vercel.app
+- **Frontend:** Vercel (custom domain) - https://www.skill-bridge.me
 - **Backend:** Render - https://skillbridge-mern.onrender.com
 - **AI Service:** Render - https://skillbridge-recommendation-service.onrender.com
 - **Database:** MongoDB Atlas (cloud)

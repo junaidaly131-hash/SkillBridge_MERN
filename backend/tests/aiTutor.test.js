@@ -42,6 +42,7 @@ class MemoryRepository {
     this.locks = new Map();
     this.userUsage = new Map();
     this.globalUsage = 0;
+    this.lastLockTtlMs = null;
     this.sequence = 10;
   }
 
@@ -217,6 +218,7 @@ class MemoryRepository {
   }
 
   async acquireLock(owner, token, ttlMs) {
+    this.lastLockTtlMs = ttlMs;
     const existing = this.locks.get(String(owner));
     if (existing && existing.expiresAt > Date.now() && existing.token !== token) return false;
     this.locks.set(String(owner), { token, expiresAt: Date.now() + ttlMs });
@@ -311,6 +313,61 @@ test('Gemini provider retries one transient server failure inside the same admit
   assert.equal(answer, 'Recovered without another user turn.');
   assert.equal(calls, 2);
   assert.deepEqual(delays, [25]);
+});
+
+test('Gemini provider never exceeds two total attempts even with an unsafe direct config', async () => {
+  let calls = 0;
+  const provider = createGeminiProvider(config({ providerAttempts: 99, retryDelayMs: 0 }), {
+    ai: {
+      models: {
+        async generateContent() {
+          calls += 1;
+          throw { status: 503 };
+        },
+      },
+    },
+    sleep: async () => {},
+  });
+
+  await assert.rejects(
+    provider.generate({ history: [], prompt: 'Explain closures.' }),
+    (error) => error.code === 'PROVIDER_UNAVAILABLE'
+  );
+  assert.equal(calls, 2);
+});
+
+test('a provider retry stores one turn and consumes app quota once', async () => {
+  let providerCalls = 0;
+  const cfg = config({ retryDelayMs: 0 });
+  const provider = createGeminiProvider(cfg, {
+    ai: {
+      models: {
+        async generateContent() {
+          providerCalls += 1;
+          if (providerCalls === 1) throw { status: 503 };
+          return { text: 'Recovered once.' };
+        },
+      },
+    },
+    sleep: async () => {},
+  });
+  const state = setup({ config: cfg, provider });
+  const conversation = await readyConversation(state);
+
+  await state.service.sendMessage({
+    owner: IDS.alice,
+    conversationId: conversation._id,
+    text: 'Explain closures.',
+    clientRequestId: 'retry_safety_request_01',
+  });
+
+  const storedMessages = [...state.repository.messages.values()];
+  assert.equal(providerCalls, 2);
+  assert.equal(state.repository.globalUsage, 1);
+  assert.equal(state.repository.userUsage.get(IDS.alice), 1);
+  assert.equal(state.repository.requests.size, 1);
+  assert.equal(storedMessages.filter((message) => message.role === 'user').length, 1);
+  assert.equal(storedMessages.filter((message) => message.role === 'assistant').length, 1);
 });
 
 test('Gemini provider does not repeat a full timeout', async () => {
@@ -470,6 +527,22 @@ test('one active generation per user rejects a concurrent different request', as
   assert.equal(state.repository.globalUsage, 1);
 });
 
+test('generation lock TTL covers all attempts, retry delay, and persistence buffer', async () => {
+  const state = setup({
+    config: { requestTimeoutMs: 60000, providerAttempts: 2, retryDelayMs: 350 },
+  });
+  const conversation = await readyConversation(state);
+
+  await state.service.sendMessage({
+    owner: IDS.alice,
+    conversationId: conversation._id,
+    text: 'Explain promises.',
+    clientRequestId: 'lock_ttl_request_0001',
+  });
+
+  assert.equal(state.repository.lastLockTtlMs, 60000 * 2 + 350 + 15000);
+});
+
 test('atomic shared quota never overshoots under concurrent users', async () => {
   let providerCalls = 0;
   const state = setup({
@@ -504,6 +577,43 @@ test('atomic shared quota never overshoots under concurrent users', async () => 
   assert.equal(results.filter((value) => value === 'GLOBAL_DAILY_LIMIT').length, 5);
   assert.equal(state.repository.globalUsage, 3);
   assert.equal(providerCalls, 3);
+});
+
+test('concurrent global reservations admit exactly one request when one slot remains', async () => {
+  const state = setup({ config: { dailyGlobalLimit: 3 } });
+  state.repository.globalUsage = 2;
+
+  const reservations = await Promise.all(
+    Array.from({ length: 12 }, (_, index) =>
+      state.repository.reserveUsage(
+        `64b0000000000000000002${index.toString(16).padStart(2, '0')}`,
+        state.config,
+        new Date('2026-10-17T12:00:00.000Z')
+      )
+    )
+  );
+
+  assert.equal(reservations.filter((result) => result.admitted).length, 1);
+  assert.equal(state.repository.globalUsage, 3);
+});
+
+test('concurrent user reservations admit exactly one request when one slot remains', async () => {
+  const state = setup({ config: { dailyUserLimit: 3 } });
+  state.repository.userUsage.set(IDS.alice, 2);
+
+  const reservations = await Promise.all(
+    Array.from({ length: 12 }, () =>
+      state.repository.reserveUsage(
+        IDS.alice,
+        state.config,
+        new Date('2026-10-17T12:00:00.000Z')
+      )
+    )
+  );
+
+  assert.equal(reservations.filter((result) => result.admitted).length, 1);
+  assert.equal(state.repository.userUsage.get(IDS.alice), 3);
+  assert.equal(state.repository.globalUsage, 1);
 });
 
 test('per-user daily quota rejects further turns without another provider call', async () => {

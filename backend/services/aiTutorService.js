@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { getAiTutorAvailability } from '../config/aiTutor.js';
-import { AiTutorProviderError } from './aiTutorProvider.js';
+import { AiTutorProviderError, providerAttemptCount } from './aiTutorProvider.js';
 
 const ERROR_DEFINITIONS = {
   AI_TUTOR_DISABLED: [503, 'AI Tutor is currently unavailable.'],
@@ -205,7 +205,15 @@ export class AiTutorService {
     if (!claim.created) return this.duplicateResult(claim.request, conversationId);
 
     const requestId = String(claim.request._id || claim.request.id);
-    const lockTtlMs = this.config.requestTimeoutMs + 15000;
+    const providerAttempts = providerAttemptCount(this.config);
+    const retryDelayTotalMs =
+      Math.max(0, Number(this.config.retryDelayMs || 0)) *
+      ((providerAttempts - 1) * providerAttempts) / 2;
+    // Cover every possible provider attempt, every backoff, and a DB/storage
+    // buffer. The lock therefore cannot expire while an admitted retry is
+    // still capable of producing an assistant response.
+    const lockTtlMs =
+      this.config.requestTimeoutMs * providerAttempts + retryDelayTotalMs + 15000;
     const locked = await this.repository.acquireLock(owner, clientRequestId, lockTtlMs);
     if (!locked) {
       await this.repository.updateRequest(requestId, {

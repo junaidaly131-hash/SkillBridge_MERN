@@ -46,7 +46,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.8-flash
+        value: gemini-3.5-flash-lite
       - key: AI_TUTOR_DAILY_USER_LIMIT
         value: 10
       - key: AI_TUTOR_DAILY_GLOBAL_LIMIT
@@ -56,7 +56,11 @@ services:
       - key: AI_TUTOR_MAX_OUTPUT_TOKENS
         value: 1024
       - key: AI_TUTOR_REQUEST_TIMEOUT_MS
-        value: 30000
+        value: 60000
+      - key: AI_TUTOR_PROVIDER_ATTEMPTS
+        value: 2
+      - key: AI_TUTOR_RETRY_DELAY_MS
+        value: 350
       - key: AI_TUTOR_MAX_CONVERSATION_TURNS
         value: 50
       - key: AI_TUTOR_MAX_CONTEXT_CHARS

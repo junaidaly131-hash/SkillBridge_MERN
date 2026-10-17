@@ -38,9 +38,15 @@ function classifyProviderError(error) {
 }
 
 const RETRYABLE_PROVIDER_ERRORS = new Set(['PROVIDER_NETWORK', 'PROVIDER_UNAVAILABLE']);
+const MAX_PROVIDER_ATTEMPTS = 2;
 
 function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+export function providerAttemptCount(config) {
+  const configured = Number(config?.providerAttempts || 1);
+  return Math.min(MAX_PROVIDER_ATTEMPTS, Math.max(1, Number.isFinite(configured) ? configured : 1));
 }
 
 export function createGeminiProvider(config, dependencies = {}) {
@@ -57,7 +63,9 @@ export function createGeminiProvider(config, dependencies = {}) {
         { role: 'user', parts: [{ text: prompt }] },
       ];
 
-      const attempts = Math.max(1, config.providerAttempts || 1);
+      // Defensive cap as well as config validation: even a directly-constructed
+      // config or stale environment can never cause more than two total calls.
+      const attempts = providerAttemptCount(config);
       let lastError;
 
       for (let attempt = 1; attempt <= attempts; attempt += 1) {

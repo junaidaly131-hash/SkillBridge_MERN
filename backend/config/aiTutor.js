@@ -34,7 +34,7 @@ export function getAiTutorConfig() {
     // provider timeout configurable, but use a production-safe default that
     // does not turn normal model latency into an application-level 504.
     requestTimeoutMs: boundedInteger('AI_TUTOR_REQUEST_TIMEOUT_MS', 60000, 5000, 120000, invalidVariables),
-    providerAttempts: boundedInteger('AI_TUTOR_PROVIDER_ATTEMPTS', 2, 1, 3, invalidVariables),
+    providerAttempts: boundedInteger('AI_TUTOR_PROVIDER_ATTEMPTS', 2, 1, 2, invalidVariables),
     retryDelayMs: boundedInteger('AI_TUTOR_RETRY_DELAY_MS', 350, 0, 5000, invalidVariables),
     maxConversationTurns: boundedInteger('AI_TUTOR_MAX_CONVERSATION_TURNS', 50, 5, 200, invalidVariables),
     maxContextChars: boundedInteger('AI_TUTOR_MAX_CONTEXT_CHARS', 12000, 1000, 50000, invalidVariables),
