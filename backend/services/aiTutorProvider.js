@@ -35,8 +35,15 @@ function classifyProviderError(error) {
   return new AiTutorProviderError('PROVIDER_ERROR');
 }
 
-export function createGeminiProvider(config) {
-  const ai = new GoogleGenAI({ apiKey: config.apiKey });
+const RETRYABLE_PROVIDER_ERRORS = new Set(['PROVIDER_NETWORK', 'PROVIDER_UNAVAILABLE']);
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+export function createGeminiProvider(config, dependencies = {}) {
+  const ai = dependencies.ai || new GoogleGenAI({ apiKey: config.apiKey });
+  const sleep = dependencies.sleep || wait;
 
   return {
     async generate({ history, prompt }) {
@@ -48,35 +55,48 @@ export function createGeminiProvider(config) {
         { role: 'user', parts: [{ text: prompt }] },
       ];
 
-      try {
-        const response = await ai.models.generateContent({
-          model: config.model,
-          contents,
-          config: {
-            systemInstruction: SYSTEM_INSTRUCTION,
-            maxOutputTokens: config.maxOutputTokens,
-            temperature: 0.45,
-            // The SDK defaults to five attempts for retryable responses. AI
-            // Tutor deliberately makes one provider call per admitted request.
-            httpOptions: {
-              timeout: config.requestTimeoutMs,
-              retryOptions: { attempts: 1 },
+      const attempts = Math.max(1, config.providerAttempts || 1);
+      let lastError;
+
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+          const response = await ai.models.generateContent({
+            model: config.model,
+            contents,
+            config: {
+              systemInstruction: SYSTEM_INSTRUCTION,
+              maxOutputTokens: config.maxOutputTokens,
+              temperature: 0.45,
+              // Retry policy is handled here so configuration/quota/safety
+              // failures are never repeated. A timeout is not repeated either:
+              // the provider may still have completed it, and another full
+              // timeout could exceed the hosting request deadline.
+              httpOptions: {
+                timeout: config.requestTimeoutMs,
+                retryOptions: { attempts: 1 },
+              },
             },
-          },
-        });
+          });
 
-        const blockReason = response?.promptFeedback?.blockReason;
-        const finishReason = response?.candidates?.[0]?.finishReason;
-        if (blockReason || finishReason === 'SAFETY') {
-          throw new AiTutorProviderError('SAFETY_BLOCKED');
+          const blockReason = response?.promptFeedback?.blockReason;
+          const finishReason = response?.candidates?.[0]?.finishReason;
+          if (blockReason || finishReason === 'SAFETY') {
+            throw new AiTutorProviderError('SAFETY_BLOCKED');
+          }
+
+          const text = String(response?.text || '').trim();
+          if (!text) throw new AiTutorProviderError('EMPTY_RESPONSE');
+          return text;
+        } catch (error) {
+          lastError = classifyProviderError(error);
+          if (attempt >= attempts || !RETRYABLE_PROVIDER_ERRORS.has(lastError.code)) {
+            throw lastError;
+          }
+          await sleep((config.retryDelayMs || 0) * attempt);
         }
-
-        const text = String(response?.text || '').trim();
-        if (!text) throw new AiTutorProviderError('EMPTY_RESPONSE');
-        return text;
-      } catch (error) {
-        throw classifyProviderError(error);
       }
+
+      throw lastError || new AiTutorProviderError('PROVIDER_ERROR');
     },
   };
 }
