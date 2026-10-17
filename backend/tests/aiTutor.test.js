@@ -3,7 +3,7 @@ import http from 'node:http';
 import test from 'node:test';
 import express from 'express';
 import { createAiTutorRouter } from '../routes/aiTutor.routes.js';
-import { AiTutorProviderError } from '../services/aiTutorProvider.js';
+import { AiTutorProviderError, createGeminiProvider } from '../services/aiTutorProvider.js';
 import { AiTutorError, AiTutorService, boundedHistory } from '../services/aiTutorService.js';
 
 const IDS = {
@@ -22,6 +22,8 @@ function config(overrides = {}) {
     maxInputChars: 4000,
     maxOutputTokens: 1024,
     requestTimeoutMs: 50,
+    providerAttempts: 2,
+    retryDelayMs: 1,
     maxConversationTurns: 50,
     maxContextChars: 12000,
     maxContextMessages: 24,
@@ -284,6 +286,56 @@ test('bounded history keeps recent completed context inside the character budget
     { role: 'assistant', text: 'recent' },
     { role: 'user', text: 'latest' },
   ]);
+});
+
+test('Gemini provider retries one transient server failure inside the same admitted request', async () => {
+  let calls = 0;
+  const delays = [];
+  const provider = createGeminiProvider(config({ requestTimeoutMs: 60000, retryDelayMs: 25 }), {
+    ai: {
+      models: {
+        async generateContent(request) {
+          calls += 1;
+          assert.equal(request.config.httpOptions.timeout, 60000);
+          assert.equal(request.config.httpOptions.retryOptions.attempts, 1);
+          if (calls === 1) throw { status: 503 };
+          return { text: 'Recovered without another user turn.' };
+        },
+      },
+    },
+    sleep: async (milliseconds) => delays.push(milliseconds),
+  });
+
+  const answer = await provider.generate({ history: [], prompt: 'Explain closures.' });
+
+  assert.equal(answer, 'Recovered without another user turn.');
+  assert.equal(calls, 2);
+  assert.deepEqual(delays, [25]);
+});
+
+test('Gemini provider does not repeat a full timeout', async () => {
+  let calls = 0;
+  const provider = createGeminiProvider(config({ providerAttempts: 3 }), {
+    ai: {
+      models: {
+        async generateContent() {
+          calls += 1;
+          const error = new Error('request timed out');
+          error.name = 'AbortError';
+          throw error;
+        },
+      },
+    },
+    sleep: async () => {
+      throw new Error('timeout must not be retried');
+    },
+  });
+
+  await assert.rejects(
+    provider.generate({ history: [], prompt: 'Explain promises.' }),
+    (error) => error.code === 'PROVIDER_TIMEOUT'
+  );
+  assert.equal(calls, 1);
 });
 
 test('cross-user message access and deletion are rejected without revealing ownership', async () => {
