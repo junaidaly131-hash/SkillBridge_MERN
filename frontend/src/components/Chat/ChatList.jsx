@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Menu, Archive, ArchiveRestore, ArrowLeft, ChevronDown, Trash2 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchConversations, setConversationArchived, deleteConversation } from "../../store/chatSlice";
+import { setConversationArchived, deleteConversation } from "../../store/chatSlice";
 import { useToast } from "../../ui/Toast";
 import ChatListSkeleton from "./ChatListSkeleton";
 
@@ -15,10 +15,6 @@ function ChatList({ selectedChat, onSelectChat, onToggleMobile }) {
   const { conversations, loading, typingByConversation } = useSelector((state) => state.chat);
   const { user } = useSelector((state) => state.auth);
   const { onlineUserIds } = useSelector((state) => state.presence);
-
-  useEffect(() => {
-    dispatch(fetchConversations());
-  }, [dispatch]);
 
   const displayConversations = useMemo(() => {
     const meId = user?.id;
@@ -64,7 +60,6 @@ function ChatList({ selectedChat, onSelectChat, onToggleMobile }) {
         setConversationArchived({ conversationId: conv._id, archived: !conv.archived })
       ).unwrap();
       toast.success(conv.archived ? "Moved back to your inbox." : "Chat archived.");
-      dispatch(fetchConversations());
     } catch (err) {
       toast.error(err || "Couldn't update this chat");
     }
@@ -187,7 +182,7 @@ function ChatList({ selectedChat, onSelectChat, onToggleMobile }) {
 
       {/* Conversations List */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {loading ? (
+        {loading && conversations.length === 0 ? (
           <ChatListSkeleton />
         ) : (
           <>

@@ -19,6 +19,7 @@ function LoginPage() {
   const { showSuccess, showError, showInfo } = useToast();
   const { loading, error, token, user, verificationEmail } = useSelector((state) => state.auth);
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [formErrors, setFormErrors] = useState({});
   const defaultPath = user?.role === "admin" ? "/admin/transactions" : "/dashboard";
   const redirectPath = location.state?.from?.pathname || defaultPath;
 
@@ -45,12 +46,43 @@ function LoginPage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormErrors((prev) => ({ ...prev, [name]: "" }));
     if (error) dispatch(clearError());
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    const email = formData.email.trim();
+
+    if (!email) {
+      errors.email = "Email address is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = "Enter a valid email address.";
+    }
+
+    if (!formData.password) {
+      errors.password = "Password is required.";
+    } else if (formData.password.length < 6) {
+      errors.password = "Password must be at least 6 characters.";
+    }
+
+    return errors;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    dispatch(loginUser(formData));
+    const errors = validateForm();
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    setFormErrors({});
+    dispatch(loginUser({
+      email: formData.email.trim().toLowerCase(),
+      password: formData.password,
+    }));
   };
 
 
@@ -182,7 +214,7 @@ function LoginPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
             <Input
               label="Email Address"
               name="email"
@@ -190,6 +222,8 @@ function LoginPage() {
               placeholder="Enter your email"
               value={formData.email}
               onChange={handleChange}
+              error={formErrors.email}
+              autoComplete="email"
             />
             <Input
               label="Password"
@@ -198,6 +232,8 @@ function LoginPage() {
               placeholder="Enter your password"
               value={formData.password}
               onChange={handleChange}
+              error={formErrors.password}
+              autoComplete="current-password"
             />
 
             <div className="flex items-center justify-end text-sm">

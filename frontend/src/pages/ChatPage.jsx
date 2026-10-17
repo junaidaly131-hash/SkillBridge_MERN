@@ -110,16 +110,11 @@ function ChatPage() {
       if (!conversationId) return;
       dispatch(applyMessageUpdate({ conversationId, message: msg }));
     };
-    // Editing the newest message changes the sidebar preview, which comes from
-    // the conversation list rather than the message store.
-    const onPreviewChanged = () => dispatch(fetchConversations());
-
     socket.on("messagesDelivered", onMessagesDelivered);
     socket.on("messagesRead", onMessagesRead);
     socket.on("userTyping", onTyping);
     socket.on("userStoppedTyping", onStoppedTyping);
     socket.on("messageUpdated", onMessageUpdated);
-    socket.on("conversationPreviewChanged", onPreviewChanged);
 
     return () => {
       socket.off("onlineUsers", onOnlineUsers);
@@ -130,7 +125,6 @@ function ChatPage() {
       socket.off("userTyping", onTyping);
       socket.off("userStoppedTyping", onStoppedTyping);
       socket.off("messageUpdated", onMessageUpdated);
-      socket.off("conversationPreviewChanged", onPreviewChanged);
       Object.values(typingTimers).forEach(clearTimeout);
     };
   }, [dispatch]);

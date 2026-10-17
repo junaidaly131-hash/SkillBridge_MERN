@@ -274,9 +274,24 @@ const chatSlice = createSlice({
     applyMessageUpdate: (state, action) => {
       const { conversationId, message } = action.payload;
       const list = state.messagesByConversation[conversationId];
-      if (!list) return;
-      const i = list.findIndex((m) => String(m._id) === String(message._id));
-      if (i >= 0) list[i] = message;
+      if (list) {
+        const i = list.findIndex((m) => String(m._id) === String(message._id));
+        if (i >= 0) list[i] = message;
+      }
+
+      // If the changed message is the conversation's latest one, update the
+      // sidebar preview from the same socket payload. Refetching every
+      // conversation here used to flip the list back to its skeleton on every
+      // edit and made a one-line change look like the whole inbox reloaded.
+      const conversation = state.conversations.find(
+        (c) => String(c._id) === String(conversationId)
+      );
+      const lastMessageId = conversation?.lastMessage?._id
+        || conversation?.lastMessage?.id
+        || conversation?.lastMessage;
+      if (conversation && String(lastMessageId) === String(message._id)) {
+        conversation.lastMessage = message;
+      }
     },
     setError: (state, action) => {
       state.error = action.payload;

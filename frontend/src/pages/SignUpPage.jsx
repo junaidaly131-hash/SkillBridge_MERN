@@ -25,6 +25,7 @@ function SignUpPage() {
     email: "",
     password: "",
   });
+  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
     if (token) {
@@ -49,12 +50,51 @@ function SignUpPage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormErrors((prev) => ({ ...prev, [name]: "" }));
     if (error) dispatch(clearError());
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+
+    if (!name) {
+      errors.name = "Full name is required.";
+    } else if (name.length < 2) {
+      errors.name = "Full name must be at least 2 characters.";
+    }
+
+    if (!email) {
+      errors.email = "Email address is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = "Enter a valid email address.";
+    }
+
+    if (!formData.password) {
+      errors.password = "Password is required.";
+    } else if (formData.password.length < 6) {
+      errors.password = "Password must be at least 6 characters.";
+    }
+
+    return errors;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    dispatch(registerUser(formData));
+    const errors = validateForm();
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    setFormErrors({});
+    dispatch(registerUser({
+      name: formData.name.trim(),
+      email: formData.email.trim().toLowerCase(),
+      password: formData.password,
+    }));
   };
 
 
@@ -293,7 +333,7 @@ function SignUpPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
             <Input
               label="Full Name"
               name="name"
@@ -301,6 +341,8 @@ function SignUpPage() {
               placeholder="Enter your full name"
               value={formData.name}
               onChange={handleChange}
+              error={formErrors.name}
+              autoComplete="name"
             />
             <Input
               label="Email Address"
@@ -309,15 +351,19 @@ function SignUpPage() {
               placeholder="Enter your email"
               value={formData.email}
               onChange={handleChange}
+              error={formErrors.email}
+              autoComplete="email"
             />
-              <Input
-                label="Password"
-                name="password"
-                type="password"
-                placeholder="Create a password"
-                value={formData.password}
-                onChange={handleChange}
-              />
+            <Input
+              label="Password"
+              name="password"
+              type="password"
+              placeholder="Create a password"
+              value={formData.password}
+              onChange={handleChange}
+              error={formErrors.password}
+              autoComplete="new-password"
+            />
 
           
 

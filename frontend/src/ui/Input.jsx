@@ -8,6 +8,7 @@ function Input({
   onChange,
   label,
   name,
+  error,
   variant = "default",
   className = "",
   ...props
@@ -25,6 +26,8 @@ function Input({
       "bg-light-bg border-transparent focus:border-teal focus:ring-1 focus:ring-teal",
     outline: "border-dark-blue focus:border-teal focus:ring-1 focus:ring-teal",
   };
+
+  const errorId = error ? `${name}-error` : undefined;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -44,7 +47,13 @@ function Input({
           placeholder={placeholder}
           value={value}
           onChange={onChange}
-          className={`${baseStyles} ${variants[variant]} ${isPassword ? "pr-10" : ""} ${className}`}
+          aria-invalid={Boolean(error)}
+          aria-describedby={errorId}
+          className={`${baseStyles} ${
+            error
+              ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+              : variants[variant]
+          } ${isPassword ? "pr-10" : ""} ${className}`}
           {...props}
         />
         {isPassword && (
@@ -62,6 +71,11 @@ function Input({
           </button>
         )}
       </div>
+      {error && (
+        <p id={errorId} className="font-family-poppins text-xs text-red-600" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
