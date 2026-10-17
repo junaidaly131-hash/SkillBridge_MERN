@@ -39,6 +39,30 @@ services:
           property: host
       - key: RECOMMENDATION_SERVICE_API_KEY
         generateValue: true # Render will auto-generate a secure secret
+      # AI Tutor is independently disabled until the server-only Gemini key is
+      # configured. Never expose this key to Vercel or a VITE_* variable.
+      - key: AI_TUTOR_ENABLED
+        value: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: AI_TUTOR_DAILY_USER_LIMIT
+        value: 10
+      - key: AI_TUTOR_DAILY_GLOBAL_LIMIT
+        value: 100
+      - key: AI_TUTOR_MAX_INPUT_CHARS
+        value: 4000
+      - key: AI_TUTOR_MAX_OUTPUT_TOKENS
+        value: 1024
+      - key: AI_TUTOR_REQUEST_TIMEOUT_MS
+        value: 30000
+      - key: AI_TUTOR_MAX_CONVERSATION_TURNS
+        value: 50
+      - key: AI_TUTOR_MAX_CONTEXT_CHARS
+        value: 12000
+      - key: AI_TUTOR_MAX_CONTEXT_MESSAGES
+        value: 24
       - key: CLOUDINARY_CLOUD_NAME
         sync: false # Set this manually in Render dashboard
       - key: CLOUDINARY_API_KEY

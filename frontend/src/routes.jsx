@@ -35,6 +35,7 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const ViewProfilePage = lazy(() => import("./pages/ViewProfilePage"));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
+const AITutorPage = lazy(() => import("./pages/AITutorPage"));
 const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
 const SupportPage = lazy(() => import("./pages/SupportPage"));
 const CreditsPage = lazy(() => import("./pages/CreditsPage"));
@@ -153,6 +154,10 @@ const router = createBrowserRouter([
         {
           path: "/chat",
           element: <ChatPage />,
+        },
+        {
+          path: "/ai-tutor",
+          element: <AITutorPage />,
         },
         {
           path: "/feedback",

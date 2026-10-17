@@ -9,6 +9,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { connectDB } from './config/database.js';
 import { describeSafepayConfig } from './config/safepay.js';
+import { describeAiTutorConfig } from './config/aiTutor.js';
 import { assertJwtConfig } from './config/jwt.js';
 import publicRoutes from './routes/public.routes.js';
 import authRoutes from './routes/auth.routes.js';
@@ -24,6 +25,7 @@ import payoutRoutes from './routes/payout.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import verificationRoutes from './routes/verification.routes.js';
 import notificationsRoutes from './routes/notifications.routes.js';
+import { createAiTutorRouter } from './routes/aiTutor.routes.js';
 import Conversation from './models/Conversation.js';
 import Message from './models/Message.js';
 import User from './models/User.js';
@@ -135,6 +137,7 @@ app.use('/api/payouts', payoutRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/ai-tutor', createAiTutorRouter());
 
 // Socket auth
 io.use((socket, next) => {
@@ -331,6 +334,7 @@ server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   // Names and set/missing only, never values - see describeSafepayConfig.
   describeSafepayConfig();
+  describeAiTutorConfig();
   startMeetingReminderJob();
   startMeetingCompletionJob();
 });

@@ -41,6 +41,11 @@ function PrivacyPage() {
           within the platform, used to operate the service and for AI-based teacher
           recommendations.
         </li>
+        <li>
+          <strong>AI Tutor content:</strong> questions you send to AI Tutor, its responses, and
+          relevant recent AI Tutor conversation history. This is separate from your private
+          person-to-person chats.
+        </li>
       </ul>
 
       <h2>2. How We Use Your Information</h2>
@@ -69,12 +74,23 @@ function PrivacyPage() {
         <li>
           <strong>Email provider</strong> — transactional email
         </li>
+        <li>
+          <strong>Google Gemini</strong> — generates AI Tutor responses. When you use AI Tutor,
+          your message and relevant recent AI Tutor history are sent to Google. Under Google&apos;s
+          free-tier terms, submitted content may be used to improve Google products. Review the{' '}
+          <a href="https://ai.google.dev/gemini-api/terms">Gemini API terms</a> before using it.
+        </li>
       </ul>
 
       <h2>4. Data Retention</h2>
       <p>
         We retain your account and transaction data for as long as your account is active, and as
         required by applicable financial record-keeping regulations after account closure.
+      </p>
+      <p>
+        Deleting an AI Tutor conversation removes SkillBridge&apos;s stored copy of its messages. It
+        does not necessarily remove content already processed or retained by Google under its own
+        terms.
       </p>
 
       <h2>5. Your Rights</h2>

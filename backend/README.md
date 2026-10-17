@@ -98,6 +98,30 @@ backend/
 
 Make sure MongoDB is running locally or provide a MongoDB Atlas connection string in your `.env` file.
 
+## SkillBridge AI Tutor
+
+AI Tutor is disabled by default and requires Node.js 20 or newer. Its Gemini key is backend-only and
+must never be placed in a `VITE_*` variable. See the root `.env.example` for the bounded settings.
+
+Authenticated routes are mounted at `/api/ai-tutor`:
+
+- `GET /status` - availability, consent, limits, remaining daily usage, and UTC reset time
+- `POST /consent` - record the current Google-processing acknowledgement
+- `GET|POST /conversations` - paginate or create the caller's conversations
+- `GET /conversations/:id/messages` - cursor-paginate the caller's messages
+- `POST /conversations/:id/messages` - admit one non-streaming generation
+- `DELETE /conversations/:id` - remove the caller's app-stored conversation and messages
+
+Quota accounting is deliberate: validation failures, disabled/missing configuration, lock conflicts,
+and quota rejections consume nothing. Once the atomic MongoDB daily reservation succeeds, the slot is
+consumed even if Gemini times out, rejects the content, or returns an error. There are no automatic
+provider retries. Retrying a failed turn is an explicit new request with a new client request ID.
+
+One expiring MongoDB lock permits at most one active generation per account. Client request IDs are
+stored with a unique per-owner index, so duplicate submissions cannot create a second provider call.
+Only a bounded window of completed AI Tutor messages is sent as context; failed turns and all other
+SkillBridge data are excluded.
+
 ## Creating the first admin
 
 There's no public signup path to the `admin` role. To promote an existing registered user to admin, run `node scripts/createAdmin.js --email=you@example.com` (or run it with no args and it will prompt for the email). This is a local CLI script only - it is never exposed as an HTTP route. Once you have one admin, further admins can be promoted from the in-app User Management page.
