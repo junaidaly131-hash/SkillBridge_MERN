@@ -77,3 +77,21 @@ export const documentFetchLimiter = rateLimit({
       message: "You've opened a lot of documents in a short time. Please try again later.",
     }),
 });
+
+/**
+ * Cheap, short-term protection in front of the durable daily AI quota.
+ * Authentication runs before this middleware, so the key is an account rather
+ * than a shared mobile/carrier IP. Daily admission still happens atomically in
+ * MongoDB; this limiter is only for bursts.
+ */
+export const aiTutorSendLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 15,
+  keyGenerator: (req) => req.user?.userId || ipKeyGenerator(req.ip),
+  ...common,
+  handler: (req, res) =>
+    res.status(429).json({
+      code: 'AI_TUTOR_RATE_LIMIT',
+      message: 'Too many AI Tutor requests. Please wait a few minutes and try again.',
+    }),
+});
