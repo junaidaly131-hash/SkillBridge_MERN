@@ -25,12 +25,17 @@ export function getAiTutorConfig() {
   return Object.freeze({
     enabled,
     apiKey: process.env.GEMINI_API_KEY?.trim() || '',
-    model: process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash',
+    model: process.env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite',
     dailyUserLimit: boundedInteger('AI_TUTOR_DAILY_USER_LIMIT', 10, 1, 100, invalidVariables),
     dailyGlobalLimit: boundedInteger('AI_TUTOR_DAILY_GLOBAL_LIMIT', 100, 1, 10000, invalidVariables),
     maxInputChars: boundedInteger('AI_TUTOR_MAX_INPUT_CHARS', 4000, 100, 10000, invalidVariables),
     maxOutputTokens: boundedInteger('AI_TUTOR_MAX_OUTPUT_TOKENS', 1024, 64, 4096, invalidVariables),
-    requestTimeoutMs: boundedInteger('AI_TUTOR_REQUEST_TIMEOUT_MS', 30000, 5000, 60000, invalidVariables),
+    // Gemini can take more than 30 seconds even for a small response. Keep the
+    // provider timeout configurable, but use a production-safe default that
+    // does not turn normal model latency into an application-level 504.
+    requestTimeoutMs: boundedInteger('AI_TUTOR_REQUEST_TIMEOUT_MS', 60000, 5000, 120000, invalidVariables),
+    providerAttempts: boundedInteger('AI_TUTOR_PROVIDER_ATTEMPTS', 2, 1, 3, invalidVariables),
+    retryDelayMs: boundedInteger('AI_TUTOR_RETRY_DELAY_MS', 350, 0, 5000, invalidVariables),
     maxConversationTurns: boundedInteger('AI_TUTOR_MAX_CONVERSATION_TURNS', 50, 5, 200, invalidVariables),
     maxContextChars: boundedInteger('AI_TUTOR_MAX_CONTEXT_CHARS', 12000, 1000, 50000, invalidVariables),
     maxContextMessages: boundedInteger('AI_TUTOR_MAX_CONTEXT_MESSAGES', 24, 2, 60, invalidVariables),
