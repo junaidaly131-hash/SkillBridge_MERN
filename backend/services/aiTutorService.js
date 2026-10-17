@@ -274,7 +274,16 @@ export class AiTutorService {
         usage,
       });
 
-      const answer = await this.provider.generate({ history, prompt: text, requestId: clientRequestId });
+      const answer = await this.provider.generate({
+        history,
+        prompt: text,
+        requestId: clientRequestId,
+        // A final admitted request must still produce a useful answer. Without
+        // this signal the model can spend the user's last turn asking a
+        // clarifying question that they cannot answer until the next reset.
+        isLastAllowedTurn:
+          usage?.userRemaining === 0 || usage?.globalRemaining === 0,
+      });
       const completedUserMessage = await this.repository.completeUserMessage(
         userMessage._id || userMessage.id
       );

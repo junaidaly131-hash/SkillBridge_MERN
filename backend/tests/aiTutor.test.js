@@ -338,6 +338,54 @@ test('Gemini provider does not repeat a full timeout', async () => {
   assert.equal(calls, 1);
 });
 
+test('Gemini provider requests a self-contained answer on the last allowed turn', async () => {
+  let systemInstruction = '';
+  const provider = createGeminiProvider(config(), {
+    ai: {
+      models: {
+        async generateContent(request) {
+          systemInstruction = request.config.systemInstruction;
+          return { text: 'A complete learning plan.' };
+        },
+      },
+    },
+  });
+
+  await provider.generate({
+    history: [],
+    prompt: 'Create a beginner learning plan.',
+    isLastAllowedTurn: true,
+  });
+
+  assert.match(systemInstruction, /last AI Tutor message available today/i);
+  assert.match(systemInstruction, /self-contained response/i);
+  assert.match(systemInstruction, /instead of asking.*clarification/i);
+});
+
+test('service marks the final admitted daily request for a self-contained response', async () => {
+  const providerInputs = [];
+  const state = setup({
+    config: { dailyUserLimit: 1 },
+    provider: {
+      async generate(input) {
+        providerInputs.push(input);
+        return 'A complete answer without a follow-up question.';
+      },
+    },
+  });
+  const conversation = await readyConversation(state);
+
+  await state.service.sendMessage({
+    owner: IDS.alice,
+    conversationId: conversation._id,
+    text: 'Create a beginner learning plan.',
+    clientRequestId: 'last_turn_request_0001',
+  });
+
+  assert.equal(providerInputs.length, 1);
+  assert.equal(providerInputs[0].isLastAllowedTurn, true);
+});
+
 test('cross-user message access and deletion are rejected without revealing ownership', async () => {
   const state = setup();
   const conversation = await readyConversation(state, IDS.alice);

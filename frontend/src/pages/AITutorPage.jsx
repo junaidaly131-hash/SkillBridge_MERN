@@ -205,7 +205,7 @@ function AITutorPage() {
 
   const sendMessage = async (overrideText) => {
     const text = String(overrideText ?? draft).trim();
-    if (!text || generating || !status?.available || status?.consentRequired) return;
+    if (!text || generating || !status?.available || status?.consentRequired || quotaExhausted) return;
     if (text.length > (status?.limits?.maxInputChars || 4000)) return;
 
     let conversationId = selectedId;
@@ -319,6 +319,14 @@ function AITutorPage() {
     !status?.consentRequired &&
     !quotaExhausted;
 
+  useEffect(() => {
+    if (!quotaExhausted || !nearBottomRef.current) return;
+    requestAnimationFrame(() => {
+      const node = scrollRef.current;
+      if (node) node.scrollTop = node.scrollHeight;
+    });
+  }, [quotaExhausted]);
+
   if (loadingPage) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center" aria-label="Loading AI Tutor">
@@ -337,7 +345,7 @@ function AITutorPage() {
             <button
               type="button"
               onClick={createConversation}
-              disabled={creating || !status?.available}
+              disabled={creating || !status?.available || quotaExhausted}
               className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-dark-blue text-white px-4 py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
             >
               {creating ? <Loader2 className="animate-spin" size={17} /> : <MessageSquarePlus size={17} />}
@@ -414,8 +422,8 @@ function AITutorPage() {
             </div>
             {status?.usage && (
               <div className="text-right shrink-0">
-                <p className="text-xs sm:text-sm font-semibold text-dark-blue">
-                  {status.usage.userRemaining} left today
+                <p className={`text-xs sm:text-sm font-semibold ${quotaExhausted ? "text-teal" : "text-dark-blue"}`}>
+                  {quotaExhausted ? "Daily limit reached" : `${status.usage.userRemaining} left today`}
                 </p>
                 <p className="hidden sm:block text-[11px] text-gray">
                   Resets {resetLabel(status.usage.resetAt)}
@@ -499,7 +507,7 @@ function AITutorPage() {
               </div>
             )}
 
-            {status?.available && !status?.consentRequired && messages.length === 0 && !loadingMessages && (
+            {status?.available && !status?.consentRequired && !quotaExhausted && messages.length === 0 && !loadingMessages && (
               <div className="max-w-3xl mx-auto py-8 sm:py-14 text-center">
                 <div className="w-14 h-14 mx-auto rounded-2xl bg-light-teal text-teal flex items-center justify-center mb-4">
                   <Bot size={29} />
@@ -590,56 +598,65 @@ function AITutorPage() {
           </div>
 
           <div className="shrink-0 border-t border-[#E5E5E5] bg-white px-3 sm:px-5 py-3">
-            {quotaExhausted && (
-              <div className="max-w-4xl mx-auto mb-2 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800" role="status">
-                <AlertCircle className="shrink-0" size={14} />
-                AI Tutor&apos;s daily allowance is used up. It resets at {resetLabel(status.usage.resetAt)}.
-              </div>
-            )}
             {sendError && (
               <div className="max-w-4xl mx-auto mb-2 flex items-start gap-2 text-xs text-red-600" role="alert">
                 <AlertCircle className="shrink-0" size={14} /> {sendError}
               </div>
             )}
             <div className="max-w-4xl mx-auto">
-              <div className="flex items-end gap-2 rounded-2xl border border-[#D0D0D0] focus-within:border-teal bg-light-gray px-3 py-2">
-                <textarea
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={handleComposerKeyDown}
-                  onCompositionStart={() => {
-                    composingRef.current = true;
-                  }}
-                  onCompositionEnd={() => {
-                    composingRef.current = false;
-                  }}
-                  rows={1}
-                  maxLength={maxInput}
-                  disabled={!status?.available || status?.consentRequired || generating || quotaExhausted}
-                  placeholder={
-                    quotaExhausted
-                      ? `Daily allowance used — resets ${resetLabel(status?.usage?.resetAt)}`
-                      : status?.consentRequired
-                      ? "Review the notice above to continue"
-                      : "Ask AI Tutor anything about learning or teaching..."
-                  }
-                  className="flex-1 min-h-10 max-h-32 resize-none bg-transparent outline-none px-1 py-2 text-sm text-black disabled:cursor-not-allowed"
-                  aria-label="Message AI Tutor"
-                />
-                <button
-                  type="button"
-                  onClick={() => sendMessage()}
-                  disabled={!canSend}
-                  className="w-10 h-10 shrink-0 rounded-xl bg-dark-blue text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-                  aria-label="Send message"
+              {quotaExhausted ? (
+                <div
+                  className="flex items-start gap-3 rounded-2xl border border-teal/25 bg-light-teal px-4 py-3 text-dark-blue"
+                  role="status"
                 >
-                  {generating ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
-                </button>
-              </div>
-              <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-gray">
-                <p>AI can make mistakes. Don&apos;t share personal or confidential information.</p>
-                <p className="shrink-0">{draft.length}/{maxInput}</p>
-              </div>
+                  <AlertCircle className="mt-0.5 shrink-0 text-teal" size={18} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">Daily AI Tutor limit reached</p>
+                    <p className="mt-0.5 text-xs leading-5 text-gray">
+                      You can continue this chat after {resetLabel(status?.usage?.resetAt)}.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-end gap-2 rounded-2xl border border-[#D0D0D0] focus-within:border-teal bg-light-gray px-3 py-2">
+                    <textarea
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      onKeyDown={handleComposerKeyDown}
+                      onCompositionStart={() => {
+                        composingRef.current = true;
+                      }}
+                      onCompositionEnd={() => {
+                        composingRef.current = false;
+                      }}
+                      rows={1}
+                      maxLength={maxInput}
+                      disabled={!status?.available || status?.consentRequired || generating}
+                      placeholder={
+                        status?.consentRequired
+                          ? "Review notice to continue"
+                          : "Ask AI Tutor..."
+                      }
+                      className="flex-1 min-h-10 max-h-32 resize-none bg-transparent outline-none px-1 py-2 text-sm text-black disabled:cursor-not-allowed"
+                      aria-label="Message AI Tutor"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => sendMessage()}
+                      disabled={!canSend}
+                      className="w-10 h-10 shrink-0 rounded-xl bg-dark-blue text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label="Send message"
+                    >
+                      {generating ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
+                    </button>
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-gray">
+                    <p>AI can make mistakes. Don&apos;t share personal or confidential information.</p>
+                    <p className="shrink-0">{draft.length}/{maxInput}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </section>

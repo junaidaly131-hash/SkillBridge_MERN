@@ -74,12 +74,15 @@ function Sidebar() {
         </Link>
         <div className="flex items-center gap-1">
           <TopbarActions />
-          <button
-            onClick={toggleSidebar}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-all"
-          >
-            {isOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          {!isOpen && (
+            <button
+              onClick={toggleSidebar}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-all"
+              aria-label="Open navigation"
+            >
+              <Menu size={24} />
+            </button>
+          )}
         </div>
       </div>
 
