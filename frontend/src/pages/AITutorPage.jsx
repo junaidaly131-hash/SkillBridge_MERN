@@ -263,7 +263,9 @@ function AITutorPage() {
     try {
       const body = new FormData();
       body.append("file", file);
-      const response = await apiClient.post("/ai-tutor/documents", body);
+      const response = await apiClient.post("/ai-tutor/documents", body, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       const document = response.data.document;
       setDocuments((current) => [document, ...current.filter((item) => item.id !== document.id)]);
       setSelectedDocumentId(document.id);
