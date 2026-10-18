@@ -67,6 +67,42 @@ services:
         value: 12000
       - key: AI_TUTOR_MAX_CONTEXT_MESSAGES
         value: 24
+      # Phase 2 remains off until authenticated preview testing and the
+      # retrieval evaluation have been completed with authorized documents.
+      - key: AI_TUTOR_DOCUMENT_RAG_ENABLED
+        value: false
+      - key: AI_TUTOR_DOCUMENT_MAX_FILE_BYTES
+        value: 5242880
+      - key: AI_TUTOR_DOCUMENT_MAX_PAGES
+        value: 50
+      - key: AI_TUTOR_DOCUMENT_MAX_CHARACTERS
+        value: 150000
+      - key: AI_TUTOR_DOCUMENT_MAX_CHUNKS
+        value: 400
+      - key: AI_TUTOR_DOCUMENT_MAX_ACTIVE_PER_USER
+        value: 5
+      - key: AI_TUTOR_DOCUMENT_DAILY_UPLOAD_ATTEMPTS
+        value: 10
+      - key: AI_TUTOR_DOCUMENT_GLOBAL_DAILY_EMBEDDING_CHARACTERS
+        value: 1000000
+      - key: AI_TUTOR_DOCUMENT_GLOBAL_PROCESSING_CONCURRENCY
+        value: 2
+      - key: AI_TUTOR_DOCUMENT_PARSE_TIMEOUT_MS
+        value: 20000
+      - key: AI_TUTOR_DOCUMENT_EMBEDDING_TIMEOUT_MS
+        value: 30000
+      - key: AI_TUTOR_DOCUMENT_EMBEDDING_MODEL
+        value: gemini-embedding-001
+      - key: AI_TUTOR_DOCUMENT_EMBEDDING_DIMENSIONS
+        value: 768
+      - key: AI_TUTOR_DOCUMENT_EMBEDDING_VERSION
+        value: gemini-embedding-001:768:v1
+      - key: AI_TUTOR_DOCUMENT_RETRIEVAL_CHUNKS
+        value: 5
+      - key: AI_TUTOR_DOCUMENT_RETRIEVAL_MIN_SCORE
+        value: 0.3
+      - key: AI_TUTOR_DOCUMENT_MAX_CONTEXT_CHARS
+        value: 14000
       - key: CLOUDINARY_CLOUD_NAME
         sync: false # Set this manually in Render dashboard
       - key: CLOUDINARY_API_KEY

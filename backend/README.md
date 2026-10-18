@@ -100,6 +100,8 @@ Make sure MongoDB is running locally or provide a MongoDB Atlas connection strin
 
 ## SkillBridge AI Tutor
 
+Phase 2 private PDF/TXT document chat is feature-flagged and documented in [`../docs/ai-tutor-document-rag.md`](../docs/ai-tutor-document-rag.md). Keep it disabled in production until the preview checklist passes.
+
 AI Tutor is disabled by default and requires Node.js 20 or newer. Its Gemini key is backend-only and
 must never be placed in a `VITE_*` variable. See the root `.env.example` for the bounded settings.
 

@@ -90,14 +90,20 @@ export class MongoAiTutorRepository {
     };
   }
 
-  async createConversation(owner) {
-    return AiTutorConversation.create({ owner, title: 'New learning chat' });
+  async createConversation(owner, options = {}) {
+    return AiTutorConversation.create({
+      owner,
+      title: options.mode === 'document' ? options.documentName || 'Document chat' : 'New learning chat',
+      mode: options.mode || 'general',
+      document: options.documentId || null,
+    });
   }
 
   async listConversations(owner, { page, limit }) {
     const filter = { owner };
     const [items, total] = await Promise.all([
       AiTutorConversation.find(filter)
+        .populate('document', 'displayName fileType status')
         .sort({ lastMessageAt: -1, _id: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -108,7 +114,9 @@ export class MongoAiTutorRepository {
   }
 
   async findConversation(owner, conversationId) {
-    return AiTutorConversation.findOne({ _id: conversationId, owner }).lean();
+    return AiTutorConversation.findOne({ _id: conversationId, owner })
+      .populate('document', 'displayName fileType status embeddingVersion embeddingModel embeddingDimensions')
+      .lean();
   }
 
   async admitTurn(owner, conversationId, { title, preview, maxTurns }) {
@@ -195,7 +203,7 @@ export class MongoAiTutorRepository {
     ).lean();
   }
 
-  async createAssistantMessage({ owner, conversationId, text, clientRequestId }) {
+  async createAssistantMessage({ owner, conversationId, text, clientRequestId, sources = [] }) {
     return AiTutorMessage.create({
       owner,
       conversation: conversationId,
@@ -203,6 +211,11 @@ export class MongoAiTutorRepository {
       text,
       status: 'completed',
       clientRequestId,
+      sources: sources.map((source) => ({
+        sourceId: source.sourceId,
+        chunk: source.chunkId,
+        label: source.label,
+      })),
     });
   }
 

@@ -15,6 +15,8 @@ const aiTutorConversationSchema = new mongoose.Schema(
       maxlength: 100,
       default: 'New learning chat',
     },
+    mode: { type: String, enum: ['general', 'document'], required: true, default: 'general' },
+    document: { type: mongoose.Schema.Types.ObjectId, ref: 'AiTutorDocument', default: null },
     turnCount: { type: Number, min: 0, default: 0 },
     lastMessagePreview: { type: String, trim: true, maxlength: 180, default: '' },
     lastMessageAt: { type: Date, default: Date.now },
@@ -23,5 +25,6 @@ const aiTutorConversationSchema = new mongoose.Schema(
 );
 
 aiTutorConversationSchema.index({ owner: 1, lastMessageAt: -1, _id: -1 });
+aiTutorConversationSchema.index({ owner: 1, document: 1, lastMessageAt: -1 });
 
 export default mongoose.model('AiTutorConversation', aiTutorConversationSchema);

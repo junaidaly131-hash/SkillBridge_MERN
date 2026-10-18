@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { getAiTutorAvailability } from '../config/aiTutor.js';
 import { AiTutorProviderError, providerAttemptCount } from './aiTutorProvider.js';
+import { AiTutorDocumentError } from './aiTutorDocumentService.js';
 
 const ERROR_DEFINITIONS = {
   AI_TUTOR_DISABLED: [503, 'AI Tutor is currently unavailable.'],
@@ -21,6 +22,16 @@ const ERROR_DEFINITIONS = {
   PROVIDER_ERROR: [502, 'AI Tutor could not complete that response. Please try again later.'],
   EMPTY_RESPONSE: [502, 'AI Tutor returned an empty response. Please try again with a new request.'],
   SAFETY_BLOCKED: [422, 'AI Tutor could not answer that request. Try rephrasing it without sensitive or unsafe content.'],
+  DOCUMENT_RESPONSE_INVALID: [502, 'AI Tutor could not validate the document sources for that answer.'],
+  DOCUMENT_DELETED_DURING_REQUEST: [409, 'This document was deleted while the answer was being prepared.'],
+  DOCUMENT_NOT_READY: [409, 'This document is not ready for questions yet.'],
+  DOCUMENT_INDEX_INCOMPATIBLE: [409, 'This document uses an older index version. Re-upload it to continue.'],
+  EMBEDDING_QUOTA: [503, 'Document search is busy because its provider limit was reached.'],
+  EMBEDDING_TIMEOUT: [504, 'Document search took too long. Please try again later.'],
+  EMBEDDING_UNAVAILABLE: [503, 'Document search is temporarily unavailable.'],
+  EMBEDDING_INCOMPATIBLE: [502, 'The document index is incompatible with this search.'],
+  EMBEDDING_INVALID: [502, 'The document search provider returned an invalid result.'],
+  EMBEDDING_ERROR: [502, 'Document search could not be completed.'],
 };
 
 export class AiTutorError extends Error {
@@ -43,11 +54,26 @@ function publicMessage(message) {
     status: message.status,
     clientRequestId: message.clientRequestId,
     errorCode: message.safeErrorCode || null,
+    sources: (message.sources || []).map((source) => ({
+      sourceId: source.sourceId,
+      chunkId: String(source.chunk?._id || source.chunk),
+      label: source.label,
+    })),
     createdAt: message.createdAt,
   };
 }
 
 function publicConversation(conversation) {
+  const document = conversation.document && typeof conversation.document === 'object'
+    ? {
+        id: String(conversation.document._id || conversation.document.id),
+        displayName: conversation.document.displayName,
+        fileType: conversation.document.fileType,
+        status: conversation.document.status,
+      }
+    : conversation.document
+      ? { id: String(conversation.document) }
+      : null;
   return {
     id: String(conversation._id || conversation.id),
     title: conversation.title,
@@ -56,6 +82,8 @@ function publicConversation(conversation) {
     lastMessageAt: conversation.lastMessageAt,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
+    mode: conversation.mode || 'general',
+    document,
   };
 }
 
@@ -83,15 +111,30 @@ function boundedHistory(messages, maxChars) {
   return selected;
 }
 
+function validateDocumentAnswer(generated, sources) {
+  const allowed = new Map(sources.map((source) => [source.sourceId, source]));
+  const answer = typeof generated?.answer === 'string' ? generated.answer.trim() : '';
+  const sourceIds = Array.isArray(generated?.sourceIds) ? [...new Set(generated.sourceIds)] : null;
+  if (!answer || !sourceIds || sourceIds.some((sourceId) => !allowed.has(sourceId))) {
+    throw new AiTutorProviderError('DOCUMENT_RESPONSE_INVALID');
+  }
+  const abstained = answer === "I couldn't find enough information about this in the selected document.";
+  if (!abstained && sourceIds.length === 0) {
+    throw new AiTutorProviderError('DOCUMENT_RESPONSE_INVALID');
+  }
+  return { answer, sources: sourceIds.map((sourceId) => allowed.get(sourceId)) };
+}
+
 function logEvent(logger, name, fields) {
   logger.info?.(`[ai-tutor] ${name} ${JSON.stringify(fields)}`);
 }
 
 export class AiTutorService {
-  constructor({ config, repository, provider, logger = console, now = () => new Date() }) {
+  constructor({ config, repository, provider, documentService = null, logger = console, now = () => new Date() }) {
     this.config = config;
     this.repository = repository;
     this.provider = provider;
+    this.documentService = documentService;
     this.logger = logger;
     this.now = now;
   }
@@ -118,6 +161,13 @@ export class AiTutorService {
         dailyUser: this.config.dailyUserLimit,
         maxInputChars: this.config.maxInputChars,
         maxConversationTurns: this.config.maxConversationTurns,
+        documentMaxFileBytes: this.config.documentMaxFileBytes,
+        documentMaxPages: this.config.documentMaxPages,
+        documentMaxActivePerUser: this.config.documentMaxActivePerUser,
+      },
+      documentRag: {
+        enabled: Boolean(availability.available && this.config.documentRagEnabled),
+        externalEmbeddings: true,
       },
     };
   }
@@ -128,9 +178,21 @@ export class AiTutorService {
     return { accepted: true, version: this.config.consentVersion };
   }
 
-  async createConversation(owner) {
+  async createConversation(owner, options = {}) {
     this.assertAvailable();
-    const conversation = await this.repository.createConversation(owner);
+    const mode = options.mode || 'general';
+    if (mode === 'document') {
+      if (!this.documentService || !options.documentId) throw new AiTutorError('DOCUMENT_NOT_READY');
+      const document = await this.documentService.getReady(owner, options.documentId);
+      const conversation = await this.repository.createConversation(owner, {
+        mode,
+        documentId: document._id || document.id,
+        documentName: document.displayName,
+      });
+      const rawConversation = conversation?.toObject ? conversation.toObject() : conversation;
+      return publicConversation({ ...rawConversation, document });
+    }
+    const conversation = await this.repository.createConversation(owner, { mode: 'general' });
     return publicConversation(conversation);
   }
 
@@ -197,6 +259,14 @@ export class AiTutorService {
 
     const conversation = await this.repository.findConversation(owner, conversationId);
     if (!conversation) throw new AiTutorError('CONVERSATION_NOT_FOUND');
+    let selectedDocumentId = null;
+    if (conversation.mode === 'document') {
+      selectedDocumentId = conversation.document?._id || conversation.document;
+      if (!this.documentService || !selectedDocumentId) throw new AiTutorError('DOCUMENT_NOT_READY');
+      // Ownership, deletion state, readiness, and embedding compatibility are
+      // checked before request admission or quota consumption.
+      await this.documentService.getReady(owner, selectedDocumentId);
+    }
     if (!(await this.repository.hasConsent(owner, this.config.consentVersion))) {
       throw new AiTutorError('CONSENT_REQUIRED');
     }
@@ -212,8 +282,10 @@ export class AiTutorService {
     // Cover every possible provider attempt, every backoff, and a DB/storage
     // buffer. The lock therefore cannot expire while an admitted retry is
     // still capable of producing an assistant response.
+    const retrievalBudgetMs =
+      conversation.mode === 'document' ? this.config.documentEmbeddingTimeoutMs + 10000 : 0;
     const lockTtlMs =
-      this.config.requestTimeoutMs * providerAttempts + retryDelayTotalMs + 15000;
+      this.config.requestTimeoutMs * providerAttempts + retryDelayTotalMs + retrievalBudgetMs + 15000;
     const locked = await this.repository.acquireLock(owner, clientRequestId, lockTtlMs);
     if (!locked) {
       await this.repository.updateRequest(requestId, {
@@ -282,16 +354,38 @@ export class AiTutorService {
         usage,
       });
 
-      const answer = await this.provider.generate({
-        history,
-        prompt: text,
-        requestId: clientRequestId,
-        // A final admitted request must still produce a useful answer. Without
-        // this signal the model can spend the user's last turn asking a
-        // clarifying question that they cannot answer until the next reset.
-        isLastAllowedTurn:
-          usage?.userRemaining === 0 || usage?.globalRemaining === 0,
-      });
+      const isLastAllowedTurn = usage?.userRemaining === 0 || usage?.globalRemaining === 0;
+      let answer;
+      let validatedSources = [];
+      if (conversation.mode === 'document') {
+        const retrieval = await this.documentService.retrieve(owner, selectedDocumentId, text, history);
+        if (!retrieval.sources.length) {
+          answer = "I couldn't find enough information about this in the selected document.";
+        } else {
+          const generated = await this.provider.generateDocument({
+            history,
+            prompt: text,
+            sources: retrieval.sources,
+            requestId: clientRequestId,
+            isLastAllowedTurn,
+          });
+          const validated = validateDocumentAnswer(generated, retrieval.sources);
+          answer = validated.answer;
+          validatedSources = validated.sources;
+        }
+        // Deletion immediately changes status away from ready. Re-check after
+        // the external call so deleted content cannot produce a new message.
+        await this.documentService.getReady(owner, selectedDocumentId).catch(() => {
+          throw new AiTutorError('DOCUMENT_DELETED_DURING_REQUEST');
+        });
+      } else {
+        answer = await this.provider.generate({
+          history,
+          prompt: text,
+          requestId: clientRequestId,
+          isLastAllowedTurn,
+        });
+      }
       const completedUserMessage = await this.repository.completeUserMessage(
         userMessage._id || userMessage.id
       );
@@ -300,6 +394,7 @@ export class AiTutorService {
         conversationId,
         text: answer,
         clientRequestId,
+        sources: validatedSources,
       });
       const finalConversation = await this.repository.touchConversation(
         owner,
@@ -333,6 +428,8 @@ export class AiTutorService {
       const code =
         error instanceof AiTutorProviderError
           ? error.code
+          : error instanceof AiTutorDocumentError
+            ? error.code
           : error instanceof AiTutorError
             ? error.code
             : 'PROVIDER_ERROR';
@@ -364,4 +461,10 @@ export function validateConversationId(value) {
   return mongoose.isValidObjectId(value);
 }
 
-export { boundedHistory, publicConversation, publicMessage, titleFromMessage };
+export {
+  boundedHistory,
+  publicConversation,
+  publicMessage,
+  titleFromMessage,
+  validateDocumentAnswer,
+};

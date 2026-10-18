@@ -1,8 +1,16 @@
 import express from 'express';
+import multer from 'multer';
 import { getAiTutorConfig } from '../config/aiTutor.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { aiTutorSendLimiter } from '../middleware/rateLimit.js';
 import { createGeminiProvider } from '../services/aiTutorProvider.js';
+import { createGeminiEmbeddingProvider } from '../services/aiTutorEmbeddingProvider.js';
+import { MongoAiTutorDocumentRepository } from '../services/aiTutorDocumentRepository.js';
+import {
+  AiTutorDocumentError,
+  AiTutorDocumentService,
+  BoundedProcessingQueue,
+} from '../services/aiTutorDocumentService.js';
 import { MongoAiTutorRepository } from '../services/aiTutorRepository.js';
 import {
   AiTutorError,
@@ -20,6 +28,9 @@ function integerQuery(value, fallback, min, max) {
 }
 
 function sendError(res, error) {
+  if (error instanceof AiTutorDocumentError) {
+    return res.status(error.status).json({ code: error.code, message: error.message });
+  }
   if (error instanceof AiTutorError) {
     return res.status(error.status).json({
       code: error.code,
@@ -45,6 +56,7 @@ function sendError(res, error) {
 export function createAiTutorRouter(options = {}) {
   const config = options.config || getAiTutorConfig();
   const repository = options.repository || new MongoAiTutorRepository();
+  const documentRepository = options.documentRepository || new MongoAiTutorDocumentRepository();
   // Do not even initialise the SDK with a missing key. The status/send service
   // returns the clear unavailable response before this placeholder is called.
   const provider =
@@ -52,9 +64,32 @@ export function createAiTutorRouter(options = {}) {
     (config.apiKey
       ? createGeminiProvider(config)
       : { generate: async () => { throw new Error('AI Tutor provider is not configured.'); } });
-  const service = options.service || new AiTutorService({ config, repository, provider });
+  const embeddingProvider =
+    options.embeddingProvider ||
+    (config.apiKey
+      ? createGeminiEmbeddingProvider(config)
+      : {
+          embedDocuments: async () => { throw new Error('Embedding provider is not configured.'); },
+          embedQuery: async () => { throw new Error('Embedding provider is not configured.'); },
+        });
+  const processingQueue =
+    options.processingQueue || new BoundedProcessingQueue(config.documentGlobalProcessingConcurrency);
+  const documentService =
+    options.documentService ||
+    new AiTutorDocumentService({
+      config,
+      repository: documentRepository,
+      embeddingProvider,
+      queue: processingQueue,
+    });
+  const service =
+    options.service || new AiTutorService({ config, repository, provider, documentService });
   const auth = options.authenticate || authenticateToken;
   const sendLimiter = options.sendLimiter === undefined ? aiTutorSendLimiter : options.sendLimiter;
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { files: 1, fileSize: config.documentMaxFileBytes },
+  });
 
   const router = express.Router();
   router.use(auth);
@@ -78,6 +113,53 @@ export function createAiTutorRouter(options = {}) {
     }
   });
 
+  router.get('/documents', async (req, res) => {
+    try {
+      res.json(await documentService.list(req.user.userId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.post('/documents', async (req, res) => {
+    let hasConsent;
+    try {
+      hasConsent = await repository.hasConsent(req.user.userId, config.consentVersion);
+      if (!hasConsent) throw new AiTutorDocumentError('DOCUMENT_CONSENT_REQUIRED');
+    } catch (error) {
+      sendError(res, error);
+      return;
+    }
+    upload.single('file')(req, res, async (uploadError) => {
+      try {
+        if (uploadError) {
+          if (uploadError instanceof multer.MulterError && uploadError.code === 'LIMIT_FILE_SIZE') {
+            throw new AiTutorDocumentError('DOCUMENT_FILE_TOO_LARGE');
+          }
+          throw new AiTutorDocumentError('DOCUMENT_FILE_REQUIRED');
+        }
+        if (Object.keys(req.body || {}).length > 0) {
+          return res.status(400).json({ code: 'INVALID_INPUT', message: 'Unexpected upload fields.' });
+        }
+        const result = await documentService.upload(req.user.userId, req.file, hasConsent);
+        res.status(result.duplicate ? 200 : 201).json(result);
+      } catch (error) {
+        sendError(res, error);
+      }
+    });
+  });
+
+  router.delete('/documents/:documentId', async (req, res) => {
+    try {
+      if (!validateConversationId(req.params.documentId)) {
+        return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid document ID.' });
+      }
+      res.json(await documentService.delete(req.user.userId, req.params.documentId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
   router.get('/conversations', async (req, res) => {
     try {
       const page = integerQuery(req.query.page, 1, 1, 100000);
@@ -93,13 +175,25 @@ export function createAiTutorRouter(options = {}) {
 
   router.post('/conversations', async (req, res) => {
     try {
-      if (Object.keys(req.body || {}).length > 0) {
+      const fields = Object.keys(req.body || {});
+      if (fields.some((field) => !['mode', 'documentId'].includes(field))) {
         return res.status(400).json({
           code: 'INVALID_INPUT',
           message: 'Conversation ownership and title are managed by the server.',
         });
       }
-      const conversation = await service.createConversation(req.user.userId);
+      const mode = req.body?.mode || 'general';
+      if (!['general', 'document'].includes(mode)) {
+        return res.status(400).json({ code: 'INVALID_INPUT', message: 'Invalid conversation mode.' });
+      }
+      const documentId = req.body?.documentId;
+      if (mode === 'document' && !validateConversationId(documentId)) {
+        return res.status(400).json({ code: 'INVALID_ID', message: 'A valid document ID is required.' });
+      }
+      if (mode === 'general' && documentId) {
+        return res.status(400).json({ code: 'INVALID_INPUT', message: 'General chats cannot select a document.' });
+      }
+      const conversation = await service.createConversation(req.user.userId, { mode, documentId });
       res.status(201).json({ conversation });
     } catch (error) {
       sendError(res, error);
@@ -186,6 +280,21 @@ export function createAiTutorRouter(options = {}) {
       sendError(res, error);
     }
   });
+
+  router.get(
+    '/conversations/:conversationId/messages/:messageId/sources/:chunkId',
+    async (req, res) => {
+      try {
+        const { conversationId, messageId, chunkId } = req.params;
+        if (![conversationId, messageId, chunkId].every(validateConversationId)) {
+          return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid source reference.' });
+        }
+        res.json(await documentService.source(req.user.userId, conversationId, messageId, chunkId));
+      } catch (error) {
+        sendError(res, error);
+      }
+    }
+  );
 
   return router;
 }

@@ -27,6 +27,7 @@ function config(overrides = {}) {
     maxConversationTurns: 50,
     maxContextChars: 12000,
     maxContextMessages: 24,
+    documentEmbeddingTimeoutMs: 30000,
     consentVersion: 'test-consent',
     termsUrl: 'https://example.test/terms',
     ...overrides,
@@ -83,7 +84,7 @@ class MemoryRepository {
     return { admitted: true, usage: await this.getUsage(owner, cfg, now) };
   }
 
-  async createConversation(owner) {
+  async createConversation(owner, options = {}) {
     const row = {
       _id: this.id(),
       owner: String(owner),
@@ -93,6 +94,8 @@ class MemoryRepository {
       lastMessageAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
+      mode: options.mode || 'general',
+      document: options.documentId || null,
     };
     this.conversations.set(row._id, row);
     return row;
@@ -176,7 +179,7 @@ class MemoryRepository {
     return { ...row };
   }
 
-  async createAssistantMessage({ owner, conversationId, text, clientRequestId }) {
+  async createAssistantMessage({ owner, conversationId, text, clientRequestId, sources = [] }) {
     return this.message({
       owner: String(owner),
       conversation: String(conversationId),
@@ -184,6 +187,11 @@ class MemoryRepository {
       text,
       status: 'completed',
       clientRequestId,
+      sources: sources.map((source) => ({
+        sourceId: source.sourceId,
+        chunk: source.chunkId,
+        label: source.label,
+      })),
     });
   }
 
@@ -264,6 +272,7 @@ function setup(overrides = {}) {
     config: cfg,
     repository,
     provider,
+    documentService: overrides.documentService || null,
     logger: { info() {} },
     now: () => new Date('2026-10-17T12:00:00.000Z'),
   });
@@ -748,6 +757,125 @@ test('disabled or missing provider configuration does not consume quota', async 
     (error) => error.code === 'AI_TUTOR_DISABLED'
   );
   assert.equal(state.repository.globalUsage, 0);
+});
+
+test('document ownership and readiness are checked before quota admission', async () => {
+  const documentService = {
+    async getReady() {
+      throw new AiTutorError('DOCUMENT_NOT_READY');
+    },
+  };
+  const state = setup({ documentService });
+  await state.repository.recordConsent(IDS.alice, state.config.consentVersion);
+  const conversation = await state.repository.createConversation(IDS.alice, {
+    mode: 'document',
+    documentId: '66d000000000000000000001',
+  });
+  await assert.rejects(
+    state.service.sendMessage({
+      owner: IDS.alice,
+      conversationId: conversation._id,
+      text: 'Question about a deleted document',
+      clientRequestId: 'document_not_ready_001',
+    }),
+    (error) => error.code === 'DOCUMENT_NOT_READY'
+  );
+  assert.equal(state.repository.globalUsage, 0);
+  assert.equal(state.repository.messages.size, 0);
+});
+
+test('document requests persist only validated citations and remain idempotent', async () => {
+  const document = {
+    _id: '66d000000000000000000001',
+    displayName: 'lesson.txt',
+    status: 'ready',
+  };
+  const source = {
+    sourceId: 'S1',
+    chunkId: '66e000000000000000000001',
+    label: 'Lines 1-3',
+    text: 'A closure retains access to its lexical scope.',
+  };
+  let retrievalCalls = 0;
+  let generationCalls = 0;
+  const documentService = {
+    async getReady() { return document; },
+    async retrieve() { retrievalCalls += 1; return { document, sources: [source] }; },
+  };
+  const provider = {
+    async generateDocument() {
+      generationCalls += 1;
+      return { answer: 'A closure retains lexical scope.', sourceIds: ['S1'] };
+    },
+  };
+  const state = setup({ documentService, provider });
+  await state.repository.recordConsent(IDS.alice, state.config.consentVersion);
+  const conversation = await state.repository.createConversation(IDS.alice, {
+    mode: 'document',
+    documentId: document._id,
+  });
+  const input = {
+    owner: IDS.alice,
+    conversationId: conversation._id,
+    text: 'What is a closure?',
+    clientRequestId: 'document_request_00001',
+  };
+  const first = await state.service.sendMessage(input);
+  const duplicate = await state.service.sendMessage(input);
+  assert.equal(first.assistantMessage.sources.length, 1);
+  assert.equal(first.assistantMessage.sources[0].chunkId, source.chunkId);
+  assert.equal(duplicate.duplicate, true);
+  assert.equal(retrievalCalls, 1);
+  assert.equal(generationCalls, 1);
+  assert.equal(state.repository.globalUsage, 1);
+  assert.equal(state.repository.messages.size, 2);
+});
+
+test('document deletion during generation prevents assistant persistence', async () => {
+  const document = { _id: '66d000000000000000000001', status: 'ready' };
+  let deleted = false;
+  const documentService = {
+    async getReady() {
+      if (deleted) throw new AiTutorError('DOCUMENT_NOT_READY');
+      return document;
+    },
+    async retrieve() {
+      return {
+        document,
+        sources: [{
+          sourceId: 'S1',
+          chunkId: '66e000000000000000000001',
+          label: 'Page 1',
+          text: 'Grounded fact.',
+        }],
+      };
+    },
+  };
+  const provider = {
+    async generateDocument() {
+      deleted = true;
+      return { answer: 'Grounded fact.', sourceIds: ['S1'] };
+    },
+  };
+  const state = setup({ documentService, provider });
+  await state.repository.recordConsent(IDS.alice, state.config.consentVersion);
+  const conversation = await state.repository.createConversation(IDS.alice, {
+    mode: 'document',
+    documentId: document._id,
+  });
+  await assert.rejects(
+    state.service.sendMessage({
+      owner: IDS.alice,
+      conversationId: conversation._id,
+      text: 'What is the fact?',
+      clientRequestId: 'document_delete_race_01',
+    }),
+    (error) => error.code === 'DOCUMENT_DELETED_DURING_REQUEST'
+  );
+  assert.equal(
+    [...state.repository.messages.values()].filter((message) => message.role === 'assistant').length,
+    0
+  );
 });
 
 test('router requires authentication and rejects client-supplied role/history', async (t) => {

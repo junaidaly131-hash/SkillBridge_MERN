@@ -126,6 +126,8 @@ ALLOWED_ORIGINS=http://localhost:5173
 
 ## 🧪 Testing
 
+AI Tutor Phase 2 private-document RAG architecture, privacy lifecycle, configuration, and beta rollout steps are documented in [docs/ai-tutor-document-rag.md](docs/ai-tutor-document-rag.md).
+
 ```bash
 # Backend (if tests exist)
 cd backend

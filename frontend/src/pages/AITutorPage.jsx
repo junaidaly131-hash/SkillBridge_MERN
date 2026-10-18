@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   Bot,
+  BookOpen,
+  CheckCircle2,
+  FileText,
   History,
   Loader2,
   Menu,
@@ -11,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import apiClient from "../api/client";
@@ -39,6 +43,19 @@ function resetLabel(resetAt) {
   }).format(new Date(resetAt));
 }
 
+function documentStatusLabel(document) {
+  if (document.status === "ready") return `${document.chunkCount} indexed sections`;
+  if (document.status === "processing") return "Extracting and indexing...";
+  const labels = {
+    DOCUMENT_SCANNED_OR_EMPTY: "No extractable text found",
+    PDF_PASSWORD_PROTECTED: "Password-protected PDF",
+    PDF_MALFORMED: "PDF could not be read",
+    DOCUMENT_INVALID_UTF8: "TXT is not valid UTF-8",
+    PROCESS_RESTARTED: "Processing was interrupted",
+  };
+  return labels[document.failureCategory] || "Processing failed";
+}
+
 function AITutorPage() {
   const [status, setStatus] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -58,8 +75,17 @@ function AITutorPage() {
   const [sendError, setSendError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [chatMode, setChatMode] = useState("general");
+  const [documents, setDocuments] = useState([]);
+  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [documentDeleteTarget, setDocumentDeleteTarget] = useState(null);
+  const [sourceDrawer, setSourceDrawer] = useState(null);
+  const [loadingSource, setLoadingSource] = useState(false);
 
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const sourceCloseRef = useRef(null);
   const nearBottomRef = useRef(true);
   const composingRef = useRef(false);
   const selectedRef = useRef(null);
@@ -67,6 +93,16 @@ function AITutorPage() {
   useEffect(() => {
     selectedRef.current = selectedId;
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!sourceDrawer) return undefined;
+    sourceCloseRef.current?.focus();
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setSourceDrawer(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [sourceDrawer]);
 
   const loadMessages = useCallback(async (conversationId) => {
     if (!conversationId) {
@@ -101,17 +137,24 @@ function AITutorPage() {
     let active = true;
     async function loadPage() {
       try {
-        const [statusResponse, conversationsResponse] = await Promise.all([
+        const [statusResponse, conversationsResponse, documentsResponse] = await Promise.all([
           apiClient.get("/ai-tutor/status"),
           apiClient.get("/ai-tutor/conversations?page=1&limit=30"),
+          apiClient.get("/ai-tutor/documents"),
         ]);
         if (!active) return;
         setStatus(statusResponse.data);
         const rows = conversationsResponse.data.conversations || [];
         setConversations(rows);
+        const documentRows = documentsResponse.data.documents || [];
+        setDocuments(documentRows);
+        const firstReadyDocument = documentRows.find((document) => document.status === "ready");
+        setSelectedDocumentId(firstReadyDocument?.id || null);
         if (rows[0]) {
           selectedRef.current = rows[0].id;
           setSelectedId(rows[0].id);
+          setChatMode(rows[0].mode || "general");
+          if (rows[0].document?.id) setSelectedDocumentId(rows[0].document.id);
           await loadMessages(rows[0].id);
         }
       } catch (error) {
@@ -127,6 +170,19 @@ function AITutorPage() {
   }, [loadMessages]);
 
   useEffect(() => {
+    if (!documents.some((document) => document.status === "processing")) return undefined;
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await apiClient.get("/ai-tutor/documents");
+        setDocuments(response.data.documents || []);
+      } catch {
+        // The page-level controls remain usable; the next poll can recover.
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [documents]);
+
+  useEffect(() => {
     if (!nearBottomRef.current || loadingOlder) return;
     requestAnimationFrame(() => {
       const node = scrollRef.current;
@@ -138,7 +194,11 @@ function AITutorPage() {
     setCreating(true);
     setSendError("");
     try {
-      const response = await apiClient.post("/ai-tutor/conversations", {});
+      const body =
+        chatMode === "document"
+          ? { mode: "document", documentId: selectedDocumentId }
+          : {};
+      const response = await apiClient.post("/ai-tutor/conversations", body);
       const conversation = response.data.conversation;
       setConversations((current) => [conversation, ...current]);
       selectedRef.current = conversation.id;
@@ -162,10 +222,111 @@ function AITutorPage() {
       return;
     }
     selectedRef.current = conversationId;
+    const conversation = conversations.find((item) => item.id === conversationId);
+    setChatMode(conversation?.mode || "general");
+    if (conversation?.document?.id) setSelectedDocumentId(conversation.document.id);
     setSelectedId(conversationId);
     setMessages([]);
     setHistoryOpen(false);
     loadMessages(conversationId);
+  };
+
+  const switchChatMode = (mode) => {
+    setChatMode(mode);
+    const first = conversations.find((conversation) => (conversation.mode || "general") === mode);
+    selectedRef.current = first?.id || null;
+    setSelectedId(first?.id || null);
+    setMessages([]);
+    setSendError("");
+    if (first) {
+      if (first.document?.id) setSelectedDocumentId(first.document.id);
+      loadMessages(first.id);
+    }
+  };
+
+  const uploadDocument = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || uploadingDocument) return;
+    const maxBytes = status?.limits?.documentMaxFileBytes || 5 * 1024 * 1024;
+    const extension = file.name.toLowerCase().split(".").pop();
+    if (!["pdf", "txt"].includes(extension)) {
+      setSendError("Only text-based PDF and UTF-8 TXT files are supported.");
+      return;
+    }
+    if (file.size > maxBytes) {
+      setSendError(`Choose a file smaller than ${Math.round(maxBytes / 1024 / 1024)} MiB.`);
+      return;
+    }
+    setUploadingDocument(true);
+    setSendError("");
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await apiClient.post("/ai-tutor/documents", body);
+      const document = response.data.document;
+      setDocuments((current) => [document, ...current.filter((item) => item.id !== document.id)]);
+      setSelectedDocumentId(document.id);
+      setChatMode("document");
+      setSelectedId(null);
+      setMessages([]);
+    } catch (error) {
+      setSendError(error.response?.data?.message || "Couldn't process that document.");
+      try {
+        const response = await apiClient.get("/ai-tutor/documents");
+        setDocuments(response.data.documents || []);
+      } catch {
+        // Keep the original actionable upload error.
+      }
+    } finally {
+      setUploadingDocument(false);
+    }
+  };
+
+  const confirmDocumentDelete = async () => {
+    if (!documentDeleteTarget) return;
+    setDeleting(true);
+    try {
+      const response = await apiClient.delete(`/ai-tutor/documents/${documentDeleteTarget.id}`);
+      const removedConversations = new Set(response.data.deletedConversationIds || []);
+      const remainingDocuments = documents.filter((document) => document.id !== documentDeleteTarget.id);
+      const remainingConversations = conversations.filter(
+        (conversation) => !removedConversations.has(conversation.id)
+      );
+      setDocuments(remainingDocuments);
+      setConversations(remainingConversations);
+      if (selectedDocumentId === documentDeleteTarget.id) {
+        setSelectedDocumentId(
+          remainingDocuments.find((document) => document.status === "ready")?.id || null
+        );
+      }
+      if (removedConversations.has(selectedId)) {
+        selectedRef.current = null;
+        setSelectedId(null);
+        setMessages([]);
+      }
+      setDocumentDeleteTarget(null);
+    } catch (error) {
+      setSendError(error.response?.data?.message || "Couldn't delete that document.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const openSource = async (message, source) => {
+    setLoadingSource(true);
+    setSourceDrawer({ sourceId: source.sourceId, label: source.label, loading: true });
+    try {
+      const response = await apiClient.get(
+        `/ai-tutor/conversations/${selectedId}/messages/${message.id}/sources/${source.chunkId}`
+      );
+      setSourceDrawer(response.data);
+    } catch (error) {
+      setSourceDrawer(null);
+      setSendError(error.response?.data?.message || "Couldn't load that source excerpt.");
+    } finally {
+      setLoadingSource(false);
+    }
   };
 
   const acceptConsent = async () => {
@@ -206,6 +367,10 @@ function AITutorPage() {
   const sendMessage = async (overrideText) => {
     const text = String(overrideText ?? draft).trim();
     if (!text || generating || !status?.available || status?.consentRequired || quotaExhausted) return;
+    if (chatMode === "document" && !selectedDocumentId) {
+      setSendError("Choose a ready document before starting a document chat.");
+      return;
+    }
     if (text.length > (status?.limits?.maxInputChars || 4000)) return;
 
     let conversationId = selectedId;
@@ -311,13 +476,18 @@ function AITutorPage() {
   const maxInput = status?.limits?.maxInputChars || 4000;
   const quotaExhausted =
     status?.usage?.userRemaining === 0 || status?.usage?.globalRemaining === 0;
+  const selectedDocument = documents.find((document) => document.id === selectedDocumentId) || null;
   const canSend =
     Boolean(draft.trim()) &&
     draft.trim().length <= maxInput &&
     !generating &&
     status?.available &&
     !status?.consentRequired &&
-    !quotaExhausted;
+    !quotaExhausted &&
+    (chatMode !== "document" || selectedDocument?.status === "ready");
+  const visibleConversations = conversations.filter(
+    (conversation) => (conversation.mode || "general") === chatMode
+  );
 
   useEffect(() => {
     if (!quotaExhausted || !nearBottomRef.current) return;
@@ -341,15 +511,115 @@ function AITutorPage() {
         <aside
           className={`${historyOpen ? "flex" : "hidden"} md:flex absolute md:static inset-0 z-20 md:z-auto w-full md:w-72 lg:w-80 bg-white border-r border-[#E5E5E5] flex-col`}
         >
-          <div className="p-4 border-b border-[#E5E5E5] flex items-center gap-2">
+          <div className="p-4 border-b border-[#E5E5E5]">
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-light-gray p-1 mb-3" aria-label="Chat type">
+              <button
+                type="button"
+                onClick={() => switchChatMode("general")}
+                className={`rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
+                  chatMode === "general" ? "bg-white text-dark-blue shadow-sm" : "text-gray hover:text-black"
+                }`}
+              >
+                General chat
+              </button>
+              <button
+                type="button"
+                onClick={() => switchChatMode("document")}
+                disabled={!status?.documentRag?.enabled}
+                className={`rounded-lg px-2 py-2 text-xs font-semibold transition-colors disabled:opacity-45 ${
+                  chatMode === "document" ? "bg-white text-teal shadow-sm" : "text-gray hover:text-black"
+                }`}
+              >
+                Document chat
+              </button>
+            </div>
+            {chatMode === "document" && (
+              <div className="mb-3 space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,application/pdf,text/plain"
+                  onChange={uploadDocument}
+                  className="sr-only"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingDocument || status?.consentRequired}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-teal/35 bg-light-teal px-3 py-2.5 text-xs font-semibold text-teal hover:border-teal disabled:opacity-50"
+                >
+                  {uploadingDocument ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
+                  {uploadingDocument ? "Extracting and indexing..." : "Upload private PDF or TXT"}
+                </button>
+                <p className="text-[10px] leading-4 text-gray px-1">
+                  Up to {Math.round((status?.limits?.documentMaxFileBytes || 5242880) / 1024 / 1024)} MiB.
+                  Text-based PDFs only.
+                </p>
+                <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1">
+                  {documents.map((document) => (
+                    <div
+                      key={document.id}
+                      className={`group flex items-center gap-2 rounded-lg border px-2 py-2 ${
+                        selectedDocumentId === document.id
+                          ? "border-teal/40 bg-light-teal"
+                          : "border-transparent hover:bg-light-gray"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (document.status !== "ready") return;
+                          setSelectedDocumentId(document.id);
+                          setSelectedId(null);
+                          setMessages([]);
+                        }}
+                        disabled={document.status !== "ready"}
+                        className="flex-1 min-w-0 text-left disabled:cursor-default"
+                      >
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-black">
+                          <FileText size={13} className="shrink-0 text-teal" />
+                          <span className="truncate">{document.displayName}</span>
+                        </span>
+                        <span className="block mt-1 text-[10px] text-gray capitalize">
+                          {documentStatusLabel(document)}
+                        </span>
+                      </button>
+                      {document.status === "failed" && (
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="text-[10px] font-semibold text-teal hover:underline"
+                        >
+                          Upload again
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setDocumentDeleteTarget(document)}
+                        className="p-1.5 rounded-md text-gray hover:text-red-600 hover:bg-red-50"
+                        aria-label={`Delete ${document.displayName}`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={createConversation}
-              disabled={creating || !status?.available || quotaExhausted}
+              disabled={
+                creating ||
+                !status?.available ||
+                quotaExhausted ||
+                (chatMode === "document" && selectedDocument?.status !== "ready")
+              }
               className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-dark-blue text-white px-4 py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
             >
               {creating ? <Loader2 className="animate-spin" size={17} /> : <MessageSquarePlus size={17} />}
-              New chat
+              {chatMode === "document" ? "New document chat" : "New chat"}
             </button>
             <button
               type="button"
@@ -359,16 +629,19 @@ function AITutorPage() {
             >
               <X size={22} />
             </button>
+            </div>
           </div>
 
           <div className="px-4 pt-4 pb-2 flex items-center gap-2 text-sm font-semibold text-gray">
             <History size={16} /> Conversation history
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4">
-            {conversations.length === 0 ? (
-              <p className="px-3 py-8 text-sm text-gray text-center">No learning chats yet.</p>
+            {visibleConversations.length === 0 ? (
+              <p className="px-3 py-8 text-sm text-gray text-center">
+                {chatMode === "document" ? "No document chats yet." : "No learning chats yet."}
+              </p>
             ) : (
-              conversations.map((conversation) => (
+              visibleConversations.map((conversation) => (
                 <div
                   key={conversation.id}
                   className={`group flex items-start gap-2 rounded-xl mb-1 ${
@@ -417,7 +690,11 @@ function AITutorPage() {
               </div>
               <div className="min-w-0">
                 <h1 className="font-bold text-black truncate">SkillBridge AI Tutor</h1>
-                <p className="text-xs text-gray truncate">Learn, practise, plan, and prepare lessons</p>
+                <p className="text-xs text-gray truncate">
+                  {chatMode === "document" && selectedDocument
+                    ? selectedDocument.displayName
+                    : "Learn, practise, plan, and prepare lessons"}
+                </p>
               </div>
             </div>
             {status?.usage && (
@@ -476,12 +753,15 @@ function AITutorPage() {
                     <h2 className="font-bold text-black mb-2">Before your first AI Tutor message</h2>
                     <p className="text-sm text-gray leading-6 mb-3">
                       Your message and relevant recent AI Tutor conversation history are sent to
-                      Google Gemini to generate a response. Under Google&apos;s free-tier terms,
-                      submitted content may be used to improve Google products.
+                      Google Gemini to generate a response. If you upload a document, its text is
+                      extracted and sent to Google for embeddings; relevant excerpts are sent again
+                      when answering. Under Google&apos;s free-tier terms, submitted content may be used
+                      to improve Google products and may be reviewed by people.
                     </p>
                     <p className="text-sm text-gray leading-6 mb-4">
-                      Don&apos;t share personal, confidential, payment, identity, or account information.
-                      AI can make mistakes, so verify important answers.
+                      Upload only material you have permission to use. Don&apos;t upload personal,
+                      confidential, payment, identity, verification, or account information. AI can
+                      make mistakes, so verify important answers.
                     </p>
                     <div className="flex flex-wrap items-center gap-4">
                       <button
@@ -507,7 +787,7 @@ function AITutorPage() {
               </div>
             )}
 
-            {status?.available && !status?.consentRequired && !quotaExhausted && messages.length === 0 && !loadingMessages && (
+            {status?.available && !status?.consentRequired && !quotaExhausted && messages.length === 0 && !loadingMessages && chatMode === "general" && (
               <div className="max-w-3xl mx-auto py-8 sm:py-14 text-center">
                 <div className="w-14 h-14 mx-auto rounded-2xl bg-light-teal text-teal flex items-center justify-center mb-4">
                   <Bot size={29} />
@@ -529,6 +809,38 @@ function AITutorPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {status?.available && !status?.consentRequired && !quotaExhausted && messages.length === 0 && !loadingMessages && chatMode === "document" && (
+              <div className="max-w-3xl mx-auto py-8 sm:py-14 text-center">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-light-teal text-teal flex items-center justify-center mb-4">
+                  <BookOpen size={28} />
+                </div>
+                {selectedDocument?.status === "ready" ? (
+                  <>
+                    <h2 className="text-xl sm:text-2xl font-bold text-black mb-2">Ask about this document</h2>
+                    <p className="text-sm text-gray mb-3 break-words">{selectedDocument.displayName}</p>
+                    <p className="text-xs text-gray max-w-xl mx-auto leading-5">
+                      Answers use only retrieved excerpts from this selected document. Source references
+                      appear below grounded answers.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-xl sm:text-2xl font-bold text-black mb-2">Choose a private document</h2>
+                    <p className="text-sm text-gray max-w-xl mx-auto leading-6">
+                      Upload a text-based PDF or UTF-8 TXT file, then select it to start a grounded chat.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-button hover:bg-teal-button-hover px-5 py-3 text-sm font-semibold text-white"
+                    >
+                      <Upload size={16} /> Upload document
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -565,6 +877,20 @@ function AITutorPage() {
                             <p className="whitespace-pre-wrap leading-6">{message.text}</p>
                           )}
                         </div>
+                        {message.role === "assistant" && message.sources?.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2" aria-label="Answer sources">
+                            {message.sources.map((source) => (
+                              <button
+                                type="button"
+                                key={`${message.id}-${source.sourceId}`}
+                                onClick={() => openSource(message, source)}
+                                className="inline-flex items-center gap-1.5 rounded-full border border-teal/30 bg-light-teal px-2.5 py-1 text-[11px] font-semibold text-teal hover:border-teal"
+                              >
+                                <FileText size={12} /> {source.sourceId} - {source.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         {message.status === "failed" && (
                           <div className="mt-2 flex items-center justify-end gap-2 text-xs text-red-600">
                             <span>Response failed.</span>
@@ -598,6 +924,12 @@ function AITutorPage() {
           </div>
 
           <div className="shrink-0 border-t border-[#E5E5E5] bg-white px-3 sm:px-5 py-3">
+            {chatMode === "document" && selectedDocument?.status === "ready" && !quotaExhausted && (
+              <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2 text-[11px] text-teal">
+                <CheckCircle2 size={13} className="shrink-0" />
+                Grounded in {selectedDocument.displayName}; general-knowledge fallback is disabled.
+              </div>
+            )}
             {sendError && (
               <div className="max-w-4xl mx-auto mb-2 flex items-start gap-2 text-xs text-red-600" role="alert">
                 <AlertCircle className="shrink-0" size={14} /> {sendError}
@@ -632,11 +964,20 @@ function AITutorPage() {
                       }}
                       rows={1}
                       maxLength={maxInput}
-                      disabled={!status?.available || status?.consentRequired || generating}
+                      disabled={
+                        !status?.available ||
+                        status?.consentRequired ||
+                        generating ||
+                        (chatMode === "document" && selectedDocument?.status !== "ready")
+                      }
                       placeholder={
                         status?.consentRequired
                           ? "Review notice to continue"
-                          : "Ask AI Tutor..."
+                          : chatMode === "document"
+                            ? selectedDocument?.status === "ready"
+                              ? "Ask about the selected document..."
+                              : "Choose a ready document first"
+                            : "Ask AI Tutor..."
                       }
                       className="flex-1 min-h-10 max-h-32 resize-none bg-transparent outline-none px-1 py-2 text-sm text-black disabled:cursor-not-allowed"
                       aria-label="Message AI Tutor"
@@ -672,6 +1013,60 @@ function AITutorPage() {
         confirmingLabel="Deleting..."
         isConfirming={deleting}
       />
+
+      <ConfirmModal
+        isOpen={Boolean(documentDeleteTarget)}
+        onClose={() => setDocumentDeleteTarget(null)}
+        onConfirm={confirmDocumentDelete}
+        title="Delete private document?"
+        message={`This permanently removes the indexed excerpts and every AI Tutor chat linked to ${documentDeleteTarget?.displayName || "this document"}. SkillBridge does not retain the original upload. Deletion here does not imply deletion of data already processed by Google.`}
+        confirmLabel="Delete document and chats"
+        confirmingLabel="Deleting..."
+        isConfirming={deleting}
+      />
+
+      {sourceDrawer && (
+        <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Document source">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setSourceDrawer(null)}
+            aria-label="Close source"
+          />
+          <aside className="relative z-10 h-full w-full max-w-md bg-white shadow-2xl flex flex-col">
+            <header className="px-5 py-4 border-b border-[#E5E5E5] flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-teal">{sourceDrawer.sourceId}</p>
+                <h2 className="font-bold text-black truncate">{sourceDrawer.filename || "Document source"}</h2>
+                <p className="text-xs text-gray mt-1">{sourceDrawer.label}</p>
+              </div>
+              <button
+                ref={sourceCloseRef}
+                type="button"
+                onClick={() => setSourceDrawer(null)}
+                className="p-2 rounded-lg text-gray hover:bg-light-gray hover:text-black"
+                aria-label="Close source excerpt"
+              >
+                <X size={20} />
+              </button>
+            </header>
+            <div className="flex-1 overflow-y-auto p-5 bg-light-bg">
+              {loadingSource || sourceDrawer.loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <Loader2 className="animate-spin text-teal" size={28} />
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-[#E5E5E5] bg-white p-4">
+                  <p className="text-xs font-semibold text-gray mb-3">Stored excerpt</p>
+                  <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-black">
+                    {sourceDrawer.excerpt}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

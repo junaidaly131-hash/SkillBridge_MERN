@@ -24,6 +24,13 @@ const aiTutorMessageSchema = new mongoose.Schema(
     },
     clientRequestId: { type: String, required: true, maxlength: 80 },
     safeErrorCode: { type: String, maxlength: 80, default: null },
+    sources: [
+      {
+        sourceId: { type: String, required: true, maxlength: 12 },
+        chunk: { type: mongoose.Schema.Types.ObjectId, ref: 'AiTutorDocumentChunk', required: true },
+        label: { type: String, required: true, maxlength: 80 },
+      },
+    ],
   },
   { timestamps: true }
 );
