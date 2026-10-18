@@ -1,8 +1,10 @@
 function terms(value) {
   return new Set(
-    String(value || '')
+    (String(value || '')
       .toLocaleLowerCase()
-      .match(/[\p{L}\p{N}_+#.-]{2,}/gu) || []
+      .match(/[\p{L}\p{N}_+#.-]{2,}/gu) || [])
+      .map((term) => term.replace(/^[.-]+|[.-]+$/g, ''))
+      .filter((term) => term.length >= 2)
   );
 }
 
@@ -21,18 +23,28 @@ function lexicalScore(queryTerms, text) {
   return matches / queryTerms.size;
 }
 
+function contentOverlap(left, right) {
+  const leftTerms = terms(left);
+  const rightTerms = terms(right);
+  if (!leftTerms.size || !rightTerms.size) return 0;
+  let shared = 0;
+  for (const term of leftTerms) if (rightTerms.has(term)) shared += 1;
+  return shared / Math.min(leftTerms.size, rightTerms.size);
+}
+
 function overlaps(existing, candidate) {
-  if (existing.source?.pageStart && candidate.source?.pageStart) {
-    return existing.source.pageStart === candidate.source.pageStart &&
-      Math.abs(existing.ordinal - candidate.ordinal) <= 1;
-  }
-  if (existing.source?.lineStart && candidate.source?.lineStart) {
-    return !(
-      existing.source.lineEnd < candidate.source.lineStart - 3 ||
-      candidate.source.lineEnd < existing.source.lineStart - 3
-    );
-  }
-  return false;
+  const samePdfPage = existing.source?.pageStart && candidate.source?.pageStart &&
+    existing.source.pageStart === candidate.source.pageStart;
+  const overlappingTextLines = existing.source?.lineStart && candidate.source?.lineStart && !(
+    existing.source.lineEnd < candidate.source.lineStart - 3 ||
+    candidate.source.lineEnd < existing.source.lineStart - 3
+  );
+  if (!samePdfPage && !overlappingTextLines) return false;
+
+  // Adjacent chunks intentionally share a small sliding window, but each can
+  // still contain unique evidence later in the page/section. Drop only a true
+  // near-duplicate instead of discarding every neighbour from the same page.
+  return contentOverlap(existing.text, candidate.text) >= 0.8;
 }
 
 export function retrieveChunks({ chunks, queryEmbedding, query, limit, minScore, maxContextChars }) {

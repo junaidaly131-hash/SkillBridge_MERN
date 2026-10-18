@@ -160,22 +160,24 @@ test('chunking preserves TXT line ranges and PDF page boundaries', () => {
   assert.deepEqual(new Set(pdfChunks.map((chunk) => chunk.source.pageStart)), new Set([1, 2]));
 });
 
-test('retrieval combines semantic and exact-term evidence and de-duplicates overlap', () => {
+test('retrieval keeps unique adjacent evidence and de-duplicates near-identical overlap', () => {
   const chunks = [
     { id: 'a', ordinal: 0, text: 'useEffect runs after rendering.', source: { pageStart: 1, pageEnd: 1 }, embedding: [1, 0] },
-    { id: 'b', ordinal: 1, text: 'useEffect cleanup runs before the next effect.', source: { pageStart: 1, pageEnd: 1 }, embedding: [0.99, 0.01] },
-    { id: 'c', ordinal: 2, text: 'The course fee is PKR 500.', source: { pageStart: 2, pageEnd: 2 }, embedding: [0, 1] },
+    { id: 'duplicate', ordinal: 1, text: 'After rendering, useEffect runs.', source: { pageStart: 1, pageEnd: 1 }, embedding: [0.99, 0.01] },
+    { id: 'education', ordinal: 2, text: 'Education: BS Computer Science at COMSATS University Islamabad.', source: { pageStart: 1, pageEnd: 1 }, embedding: [0.98, 0.02] },
+    { id: 'fee', ordinal: 3, text: 'The course fee is PKR 500.', source: { pageStart: 2, pageEnd: 2 }, embedding: [0, 1] },
   ];
   const selected = retrieveChunks({
     chunks,
     queryEmbedding: [1, 0],
     query: 'When does useEffect run?',
-    limit: 3,
+    limit: 4,
     minScore: 0.3,
     maxContextChars: 5000,
   });
   assert.equal(selected[0].id, 'a');
-  assert.equal(selected.filter((chunk) => chunk.source.pageStart === 1).length, 1);
+  assert.ok(!selected.some((chunk) => chunk.id === 'duplicate'));
+  assert.ok(selected.some((chunk) => chunk.id === 'education'));
 });
 
 test('embedding normalization rejects incompatible dimensions and invalid vectors', () => {
