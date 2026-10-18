@@ -119,6 +119,7 @@ function ProfilePage() {
 
   const selectedVerificationCount = Object.keys(verificationFiles).length;
 
+  const isAdmin = profile?.role === "admin";
   const teachesSkills = (profile?.skillsTeaching?.length || 0) > 0;
 
   // A student only has to prove who they are, so only the ID slot is offered up
@@ -340,7 +341,8 @@ function ProfilePage() {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Marketplace activity is not applicable to administrator accounts. */}
+        {!isAdmin && (
         <div className="flex flex-wrap justify-center gap-8 mt-8 pt-6 border-t border-[#E5E5E5]">
           <div className="text-center">
             <p className="font-family-poppins text-3xl font-bold text-black">
@@ -364,8 +366,11 @@ function ProfilePage() {
             <p className="font-family-poppins text-sm text-gray">Average Rating</p>
           </div>
         </div>
+        )}
       </div>
 
+      {!isAdmin && (
+        <>
       {/* Skills Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Skills I Teach */}
@@ -570,9 +575,11 @@ function ProfilePage() {
           )}
         </div>
       </div>
+        </>
+      )}
 
-      {/* Identity Verification. Shown to everyone, not just teachers - a student
-          needs it too once their free trial session is used up. */}
+      {/* Identity verification applies to marketplace users, not administrators. */}
+      {!isAdmin && (
       <div id="verification" className="bg-white rounded-xl p-6 shadow-sm scroll-mt-24">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -699,6 +706,7 @@ function ProfilePage() {
             </div>
           )}
       </div>
+      )}
 
       {/* Modals */}
       <EditProfileModal
@@ -707,34 +715,38 @@ function ProfilePage() {
         user={profile}
       />
 
-      <AddSkillModal
-        isOpen={isAddTeachingSkillOpen}
-        onClose={() => setIsAddTeachingSkillOpen(false)}
-        type="teaching"
-        title="Add Skill to Teach"
-      />
+      {!isAdmin && (
+        <>
+          <AddSkillModal
+            isOpen={isAddTeachingSkillOpen}
+            onClose={() => setIsAddTeachingSkillOpen(false)}
+            type="teaching"
+            title="Add Skill to Teach"
+          />
 
-      <AddSkillModal
-        isOpen={isAddLearningSkillOpen}
-        onClose={() => setIsAddLearningSkillOpen(false)}
-        type="learning"
-        title="Add Learning Goal"
-      />
+          <AddSkillModal
+            isOpen={isAddLearningSkillOpen}
+            onClose={() => setIsAddLearningSkillOpen(false)}
+            type="learning"
+            title="Add Learning Goal"
+          />
 
-      <AddCertificationModal
-        isOpen={isAddCertificationOpen}
-        onClose={() => setIsAddCertificationOpen(false)}
-      />
-      <AddCertificationModal
-        isOpen={isEditCertificationOpen}
-        onClose={() => {
-          setIsEditCertificationOpen(false);
-          setEditingCert(null);
-        }}
-        mode="edit"
-        initialCert={editingCert}
-        onSubmit={handleSubmitEditCertification}
-      />
+          <AddCertificationModal
+            isOpen={isAddCertificationOpen}
+            onClose={() => setIsAddCertificationOpen(false)}
+          />
+          <AddCertificationModal
+            isOpen={isEditCertificationOpen}
+            onClose={() => {
+              setIsEditCertificationOpen(false);
+              setEditingCert(null);
+            }}
+            mode="edit"
+            initialCert={editingCert}
+            onSubmit={handleSubmitEditCertification}
+          />
+        </>
+      )}
       <DocumentViewer
         isOpen={Boolean(previewCert)}
         onClose={() => setPreviewCert(null)}

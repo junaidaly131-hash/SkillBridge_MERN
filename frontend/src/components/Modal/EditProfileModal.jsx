@@ -27,6 +27,7 @@ function EditProfileModal({ isOpen, onClose, user }) {
   const { updateLoading } = useSelector((state) => state.profile);
   const fileInputRef = useRef(null);
   const isInitializedRef = useRef(false);
+  const isAdmin = user?.role === "admin";
 
   const [isClosing, setIsClosing] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -392,6 +393,8 @@ function EditProfileModal({ isOpen, onClose, user }) {
             </select>
           </div>
 
+          {!isAdmin && (
+            <>
           {/* Skills I Teach */}
           <div>
             <label className="font-family-poppins text-sm font-bold text-black block mb-3">
@@ -536,6 +539,8 @@ function EditProfileModal({ isOpen, onClose, user }) {
               )}
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
