@@ -21,6 +21,7 @@ import apiClient from "../api/client";
 import TutorMarkdown from "../components/AITutor/TutorMarkdown";
 import StudyToolsPanel from "../components/AITutor/StudyToolsPanel";
 import ConfirmModal from "../components/Modal/ConfirmModal";
+import { useToast } from "../ui/Toast";
 
 const SUGGESTIONS = [
   "Explain React hooks with examples.",
@@ -59,6 +60,7 @@ function documentStatusLabel(document) {
 }
 
 function AITutorPage() {
+  const { error: showError } = useToast();
   const [status, setStatus] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -73,8 +75,6 @@ function AITutorPage() {
   const [generating, setGenerating] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [pageError, setPageError] = useState("");
-  const [sendError, setSendError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [chatMode, setChatMode] = useState("general");
@@ -115,7 +115,6 @@ function AITutorPage() {
       return;
     }
     setLoadingMessages(true);
-    setSendError("");
     try {
       const response = await apiClient.get(
         `/ai-tutor/conversations/${conversationId}/messages?limit=40`
@@ -130,11 +129,11 @@ function AITutorPage() {
         if (node) node.scrollTop = node.scrollHeight;
       });
     } catch (error) {
-      setSendError(error.response?.data?.message || "Couldn't load this conversation.");
+      showError(error.response?.data?.message || "Couldn't load this conversation.");
     } finally {
       setLoadingMessages(false);
     }
-  }, []);
+  }, [showError]);
 
   useEffect(() => {
     let active = true;
@@ -161,7 +160,7 @@ function AITutorPage() {
           await loadMessages(rows[0].id);
         }
       } catch (error) {
-        if (active) setPageError(error.response?.data?.message || "Couldn't load AI Tutor.");
+        if (active) showError(error.response?.data?.message || "Couldn't load AI Tutor.");
       } finally {
         if (active) setLoadingPage(false);
       }
@@ -170,7 +169,7 @@ function AITutorPage() {
     return () => {
       active = false;
     };
-  }, [loadMessages]);
+  }, [loadMessages, showError]);
 
   useEffect(() => {
     if (!documents.some((document) => document.status === "processing")) return undefined;
@@ -195,7 +194,6 @@ function AITutorPage() {
 
   const createConversation = async () => {
     setCreating(true);
-    setSendError("");
     try {
       const body =
         chatMode === "document"
@@ -212,7 +210,7 @@ function AITutorPage() {
       setHistoryOpen(false);
       return conversation;
     } catch (error) {
-      setSendError(error.response?.data?.message || "Couldn't start a new chat.");
+      showError(error.response?.data?.message || "Couldn't start a new chat.");
       return null;
     } finally {
       setCreating(false);
@@ -242,7 +240,6 @@ function AITutorPage() {
     selectedRef.current = first?.id || null;
     setSelectedId(first?.id || null);
     setMessages([]);
-    setSendError("");
     if (first) {
       if (first.document?.id) setSelectedDocumentId(first.document.id);
       loadMessages(first.id);
@@ -256,15 +253,14 @@ function AITutorPage() {
     const maxBytes = status?.limits?.documentMaxFileBytes || 5 * 1024 * 1024;
     const extension = file.name.toLowerCase().split(".").pop();
     if (!["pdf", "txt"].includes(extension)) {
-      setSendError("Only text-based PDF and UTF-8 TXT files are supported.");
+      showError("Only text-based PDF and UTF-8 TXT files are supported.");
       return;
     }
     if (file.size > maxBytes) {
-      setSendError(`Choose a file smaller than ${Math.round(maxBytes / 1024 / 1024)} MiB.`);
+      showError(`Choose a file smaller than ${Math.round(maxBytes / 1024 / 1024)} MiB.`);
       return;
     }
     setUploadingDocument(true);
-    setSendError("");
     try {
       const body = new FormData();
       body.append("file", file);
@@ -278,7 +274,7 @@ function AITutorPage() {
       setSelectedId(null);
       setMessages([]);
     } catch (error) {
-      setSendError(error.response?.data?.message || "Couldn't process that document.");
+      showError(error.response?.data?.message || "Couldn't process that document.");
       try {
         const response = await apiClient.get("/ai-tutor/documents");
         setDocuments(response.data.documents || []);
@@ -338,13 +334,12 @@ function AITutorPage() {
             setMessages([]);
           }
           setDocumentDeleteTarget(null);
-          setSendError("");
           return;
         }
       } catch {
         // Preserve the original deletion error when reconciliation also fails.
       }
-      setSendError(error.response?.data?.message || "Couldn't delete that document.");
+      showError(error.response?.data?.message || "Couldn't delete that document.");
     } finally {
       setDeleting(false);
     }
@@ -360,7 +355,7 @@ function AITutorPage() {
       setSourceDrawer(response.data);
     } catch (error) {
       setSourceDrawer(null);
-      setSendError(error.response?.data?.message || "Couldn't load that source excerpt.");
+      showError(error.response?.data?.message || "Couldn't load that source excerpt.");
     } finally {
       setLoadingSource(false);
     }
@@ -368,14 +363,13 @@ function AITutorPage() {
 
   const openStudySource = async (endpoint, source) => {
     setLoadingSource(true);
-    setSendError("");
     setSourceDrawer({ sourceId: source.sourceId, label: source.label, loading: true });
     try {
       const response = await apiClient.get(endpoint);
       setSourceDrawer(response.data);
     } catch (error) {
       setSourceDrawer(null);
-      setSendError(error.response?.data?.message || "Couldn't load that source excerpt.");
+      showError(error.response?.data?.message || "Couldn't load that source excerpt.");
     } finally {
       setLoadingSource(false);
     }
@@ -383,12 +377,11 @@ function AITutorPage() {
 
   const acceptConsent = async () => {
     setAccepting(true);
-    setSendError("");
     try {
       await apiClient.post("/ai-tutor/consent", { accepted: true });
       setStatus((current) => ({ ...current, consentRequired: false }));
     } catch (error) {
-      setSendError(error.response?.data?.message || "Couldn't save your acknowledgement.");
+      showError(error.response?.data?.message || "Couldn't save your acknowledgement.");
     } finally {
       setAccepting(false);
     }
@@ -410,7 +403,7 @@ function AITutorPage() {
         if (node) node.scrollTop += node.scrollHeight - previousHeight;
       });
     } catch (error) {
-      setSendError(error.response?.data?.message || "Couldn't load older messages.");
+      showError(error.response?.data?.message || "Couldn't load older messages.");
     } finally {
       setLoadingOlder(false);
     }
@@ -420,7 +413,7 @@ function AITutorPage() {
     const text = String(overrideText ?? draft).trim();
     if (!text || generating || !status?.available || status?.consentRequired || quotaExhausted) return;
     if (chatMode === "document" && !selectedDocumentId) {
-      setSendError("Choose a ready document before starting a document chat.");
+      showError("Choose a ready document before starting a document chat.");
       return;
     }
     if (text.length > (status?.limits?.maxInputChars || 4000)) return;
@@ -454,7 +447,6 @@ function AITutorPage() {
     nearBottomRef.current = true;
     setMessages((current) => [...current, optimisticMessage]);
     setDraft("");
-    setSendError("");
     setGenerating(true);
 
     try {
@@ -485,7 +477,7 @@ function AITutorPage() {
         current.map((message) => (message.id === temporaryId ? failedMessage : message))
       );
       if (data?.usage) setStatus((current) => ({ ...current, usage: data.usage }));
-      setSendError(data?.message || "Connection lost. Your text is still available to retry.");
+      showError(data?.message || "Connection lost. Your text is still available to retry.");
     } finally {
       setGenerating(false);
     }
@@ -507,7 +499,7 @@ function AITutorPage() {
       }
       setDeleteTarget(null);
     } catch (error) {
-      setSendError(error.response?.data?.message || "Couldn't delete that conversation.");
+      showError(error.response?.data?.message || "Couldn't delete that conversation.");
     } finally {
       setDeleting(false);
     }
@@ -775,7 +767,6 @@ function AITutorPage() {
                     key={value}
                     onClick={() => {
                       setWorkspaceTab(value);
-                      setSendError("");
                     }}
                     aria-current={workspaceTab === value ? "page" : undefined}
                     className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
@@ -808,12 +799,6 @@ function AITutorPage() {
                   {loadingOlder && <Loader2 className="animate-spin" size={13} />}
                   Load older messages
                 </button>
-              </div>
-            )}
-
-            {pageError && (
-              <div className="max-w-xl mx-auto mt-12 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm flex gap-3">
-                <AlertCircle className="shrink-0" size={19} /> {pageError}
               </div>
             )}
 
@@ -1006,11 +991,6 @@ function AITutorPage() {
 
           {chatMode === "document" && workspaceTab !== "chat" && selectedDocument?.status === "ready" && (
             <div className="flex flex-1 min-h-0 flex-col">
-              {sendError && (
-                <div className="mx-3 mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 sm:mx-6" role="alert">
-                  <AlertCircle className="shrink-0" size={14} /> {sendError}
-                </div>
-              )}
               <StudyToolsPanel
                 mode={workspaceTab}
                 documentId={selectedDocument.id}
@@ -1027,11 +1007,6 @@ function AITutorPage() {
               <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2 text-[11px] text-teal">
                 <CheckCircle2 size={13} className="shrink-0" />
                 Grounded in {selectedDocument.displayName}; general-knowledge fallback is disabled.
-              </div>
-            )}
-            {sendError && (
-              <div className="max-w-4xl mx-auto mb-2 flex items-start gap-2 text-xs text-red-600" role="alert">
-                <AlertCircle className="shrink-0" size={14} /> {sendError}
               </div>
             )}
             <div className="max-w-4xl mx-auto">

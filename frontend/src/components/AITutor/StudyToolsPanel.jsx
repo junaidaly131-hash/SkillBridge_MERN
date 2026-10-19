@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, BookOpen, CheckCircle2, FileText, Loader2, RefreshCcw } from "lucide-react";
+import { BookOpen, CheckCircle2, FileText, Loader2, RefreshCcw } from "lucide-react";
 import apiClient from "../../api/client";
+import { useToast } from "../../ui/Toast";
 import TutorMarkdown from "./TutorMarkdown";
 
 const LANGUAGES = [
@@ -89,10 +90,10 @@ function SummaryView({ summary, onSource }) {
 }
 
 export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhausted, onUsage, onSource }) {
+  const { error: showError } = useToast();
   const [workspace, setWorkspace] = useState({ summaries: [], quizzes: [], attempts: [] });
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
-  const [error, setError] = useState("");
   const [language, setLanguage] = useState("english");
   const [summaryLength, setSummaryLength] = useState("short");
   const [activeSummary, setActiveSummary] = useState(null);
@@ -105,17 +106,16 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
   const loadWorkspace = useCallback(async () => {
     if (!enabled || !documentId) return;
     setLoading(true);
-    setError("");
     try {
       const response = await apiClient.get(`/ai-tutor/documents/${documentId}/study`);
       setWorkspace(response.data);
       setActiveSummary((current) => current || response.data.summaries?.[0] || null);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Couldn't load document study tools.");
+      showError(requestError.response?.data?.message || "Couldn't load document study tools.");
     } finally {
       setLoading(false);
     }
-  }, [documentId, enabled]);
+  }, [documentId, enabled, showError]);
 
   useEffect(() => {
     setActiveSummary(null);
@@ -126,7 +126,6 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
 
   const generateSummary = async (regenerate = false) => {
     setWorking(true);
-    setError("");
     try {
       const response = await apiClient.post(`/ai-tutor/documents/${documentId}/summaries`, {
         clientRequestId: requestId(), language, length: summaryLength, regenerate,
@@ -136,7 +135,7 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
       await loadWorkspace();
       setActiveSummary(response.data.summary);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Couldn't generate that summary.");
+      showError(requestError.response?.data?.message || "Couldn't generate that summary.");
       if (requestError.response?.data?.usage) onUsage(requestError.response.data.usage);
     } finally {
       setWorking(false);
@@ -145,7 +144,6 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
 
   const generateQuiz = async () => {
     setWorking(true);
-    setError("");
     try {
       const response = await apiClient.post(`/ai-tutor/documents/${documentId}/quizzes`, {
         clientRequestId: requestId(), count: Number(quizCount), difficulty, language,
@@ -154,7 +152,7 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
       await loadWorkspace();
       await startAttempt(response.data.quiz.id);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Couldn't generate that quiz.");
+      showError(requestError.response?.data?.message || "Couldn't generate that quiz.");
       if (requestError.response?.data?.usage) onUsage(requestError.response.data.usage);
     } finally {
       setWorking(false);
@@ -163,13 +161,12 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
 
   const startAttempt = async (quizId) => {
     setWorking(true);
-    setError("");
     try {
       const response = await apiClient.post(`/ai-tutor/quizzes/${quizId}/attempts`, {});
       setAttempt(response.data.attempt);
       setQuestionIndex(0);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Couldn't start this quiz.");
+      showError(requestError.response?.data?.message || "Couldn't start this quiz.");
     } finally {
       setWorking(false);
     }
@@ -182,7 +179,7 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
       setAttempt(response.data.attempt);
       setQuestionIndex(0);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Couldn't open this quiz attempt.");
+      showError(requestError.response?.data?.message || "Couldn't open this quiz attempt.");
     } finally {
       setWorking(false);
     }
@@ -198,7 +195,7 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
       setAttempt(response.data.attempt);
     } catch (requestError) {
       setAttempt(previous);
-      setError(requestError.response?.data?.message || "Couldn't save that answer.");
+      showError(requestError.response?.data?.message || "Couldn't save that answer.");
     }
   };
 
@@ -210,7 +207,7 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
       setAttempt(response.data.attempt);
       await loadWorkspace();
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Couldn't submit this quiz.");
+      showError(requestError.response?.data?.message || "Couldn't submit this quiz.");
     } finally {
       setWorking(false);
     }
@@ -230,8 +227,6 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
   return (
     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-light-bg p-3 sm:p-6">
       <div className="mx-auto max-w-4xl space-y-4">
-        {error && <div role="alert" className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={18} className="shrink-0" />{error}</div>}
-
         {mode === "summary" && (
           <>
             <section className="rounded-2xl border border-[#E5E5E5] bg-white p-4">
