@@ -1,5 +1,5 @@
 const TERMS_URL = 'https://ai.google.dev/gemini-api/terms';
-const CONSENT_VERSION = 'google-gemini-document-processing-2026-10-18';
+const CONSENT_VERSION = 'google-gemini-document-study-2026-10-19';
 
 function boundedInteger(name, fallback, min, max, invalidVariables) {
   const raw = process.env[name];
@@ -130,6 +130,50 @@ export function getAiTutorConfig() {
       30000,
       invalidVariables
     ),
+    studyToolsEnabled:
+      String(process.env.AI_TUTOR_STUDY_TOOLS_ENABLED || 'false').toLowerCase() === 'true',
+    studySummaryDirectContextChars: boundedInteger(
+      'AI_TUTOR_STUDY_SUMMARY_DIRECT_CONTEXT_CHARS', 40000, 5000, 80000, invalidVariables
+    ),
+    studySummarySectionContextChars: boundedInteger(
+      'AI_TUTOR_STUDY_SUMMARY_SECTION_CONTEXT_CHARS', 28000, 5000, 50000, invalidVariables
+    ),
+    studyQuizContextChars: boundedInteger(
+      'AI_TUTOR_STUDY_QUIZ_CONTEXT_CHARS', 30000, 5000, 60000, invalidVariables
+    ),
+    studyQuizMaxEvidenceChunks: boundedInteger(
+      'AI_TUTOR_STUDY_QUIZ_MAX_EVIDENCE_CHUNKS', 12, 4, 30, invalidVariables
+    ),
+    studyMaxProviderCallsPerAction: boundedInteger(
+      'AI_TUTOR_STUDY_MAX_PROVIDER_CALLS_PER_ACTION', 4, 1, 8, invalidVariables
+    ),
+    studyMaxIntermediateChars: boundedInteger(
+      'AI_TUTOR_STUDY_MAX_INTERMEDIATE_CHARS', 30000, 5000, 60000, invalidVariables
+    ),
+    studySummaryOutputTokens: boundedInteger(
+      'AI_TUTOR_STUDY_SUMMARY_OUTPUT_TOKENS', 2048, 256, 4096, invalidVariables
+    ),
+    studyQuizOutputTokens: boundedInteger(
+      'AI_TUTOR_STUDY_QUIZ_OUTPUT_TOKENS', 4096, 1024, 8192, invalidVariables
+    ),
+    studyMaxOutputChars: boundedInteger(
+      'AI_TUTOR_STUDY_MAX_OUTPUT_CHARS', 60000, 5000, 120000, invalidVariables
+    ),
+    studyProviderTimeoutMs: boundedInteger(
+      'AI_TUTOR_STUDY_PROVIDER_TIMEOUT_MS', 60000, 10000, 120000, invalidVariables
+    ),
+    studyActionTimeoutMs: boundedInteger(
+      'AI_TUTOR_STUDY_ACTION_TIMEOUT_MS', 540000, 60000, 900000, invalidVariables
+    ),
+    studyGlobalDailyProviderCalls: boundedInteger(
+      'AI_TUTOR_STUDY_GLOBAL_DAILY_PROVIDER_CALLS', 200, 1, 10000, invalidVariables
+    ),
+    studyGlobalDailyInputTokens: boundedInteger(
+      'AI_TUTOR_STUDY_GLOBAL_DAILY_INPUT_TOKENS', 1000000, 10000, 10000000, invalidVariables
+    ),
+    studyGlobalDailyOutputTokens: boundedInteger(
+      'AI_TUTOR_STUDY_GLOBAL_DAILY_OUTPUT_TOKENS', 500000, 10000, 10000000, invalidVariables
+    ),
     invalidVariables: Object.freeze(invalidVariables),
     consentVersion: CONSENT_VERSION,
     termsUrl: TERMS_URL,
@@ -163,7 +207,8 @@ export function describeAiTutorConfig(config = getAiTutorConfig()) {
     `AI Tutor: ${availability.available ? 'available' : availability.code}; ` +
       `GEMINI_API_KEY=${config.apiKey ? 'set' : 'missing'}; ` +
       `model=${config.model}; documentRag=${config.documentRagEnabled ? 'enabled' : 'disabled'}; ` +
-      `embeddingModel=${config.documentEmbeddingModel}; invalid=${config.invalidVariables?.length ? config.invalidVariables.join(',') : 'none'}`
+      `embeddingModel=${config.documentEmbeddingModel}; studyTools=${config.studyToolsEnabled ? 'enabled' : 'disabled'}; ` +
+      `invalid=${config.invalidVariables?.length ? config.invalidVariables.join(',') : 'none'}`
   );
 }
 

@@ -12,6 +12,8 @@ import {
   BoundedProcessingQueue,
 } from '../services/aiTutorDocumentService.js';
 import { MongoAiTutorRepository } from '../services/aiTutorRepository.js';
+import { MongoAiTutorStudyRepository } from '../services/aiTutorStudyRepository.js';
+import { AiTutorStudyError, AiTutorStudyService } from '../services/aiTutorStudyService.js';
 import {
   AiTutorError,
   AiTutorService,
@@ -40,6 +42,13 @@ function sendError(res, error) {
       userMessage: error.userMessage || null,
     });
   }
+  if (error instanceof AiTutorStudyError) {
+    return res.status(error.status).json({
+      code: error.code,
+      message: error.message,
+      usage: error.usage || null,
+    });
+  }
 
   console.error(
     `[ai-tutor] unexpected ${JSON.stringify({
@@ -57,13 +66,18 @@ export function createAiTutorRouter(options = {}) {
   const config = options.config || getAiTutorConfig();
   const repository = options.repository || new MongoAiTutorRepository();
   const documentRepository = options.documentRepository || new MongoAiTutorDocumentRepository();
+  const studyRepository = options.studyRepository || new MongoAiTutorStudyRepository();
   // Do not even initialise the SDK with a missing key. The status/send service
   // returns the clear unavailable response before this placeholder is called.
   const provider =
     options.provider ||
     (config.apiKey
       ? createGeminiProvider(config)
-      : { generate: async () => { throw new Error('AI Tutor provider is not configured.'); } });
+      : {
+          generate: async () => { throw new Error('AI Tutor provider is not configured.'); },
+          generateStudySummary: async () => { throw new Error('AI Tutor provider is not configured.'); },
+          generateStudyQuiz: async () => { throw new Error('AI Tutor provider is not configured.'); },
+        });
   const embeddingProvider =
     options.embeddingProvider ||
     (config.apiKey
@@ -84,6 +98,15 @@ export function createAiTutorRouter(options = {}) {
     });
   const service =
     options.service || new AiTutorService({ config, repository, provider, documentService });
+  const studyService =
+    options.studyService ||
+    new AiTutorStudyService({
+      config,
+      repository: studyRepository,
+      baseRepository: repository,
+      documentService,
+      provider,
+    });
   const auth = options.authenticate || authenticateToken;
   const sendLimiter = options.sendLimiter === undefined ? aiTutorSendLimiter : options.sendLimiter;
   const upload = multer({
@@ -155,6 +178,145 @@ export function createAiTutorRouter(options = {}) {
         return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid document ID.' });
       }
       res.json(await documentService.delete(req.user.userId, req.params.documentId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.get('/documents/:documentId/study', async (req, res) => {
+    try {
+      if (!validateConversationId(req.params.documentId)) {
+        return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid document ID.' });
+      }
+      res.json(await studyService.workspace(req.user.userId, req.params.documentId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.post(
+    '/documents/:documentId/summaries',
+    ...(sendLimiter ? [sendLimiter] : []),
+    async (req, res) => {
+      try {
+        if (!validateConversationId(req.params.documentId)) {
+          return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid document ID.' });
+        }
+        const fields = Object.keys(req.body || {});
+        if (fields.some((field) => !['clientRequestId', 'language', 'length', 'regenerate'].includes(field))) {
+          return res.status(400).json({ code: 'INVALID_INPUT', message: 'Unexpected summary fields.' });
+        }
+        const clientRequestId = String(req.body?.clientRequestId || '');
+        if (!REQUEST_ID_PATTERN.test(clientRequestId)) {
+          return res.status(400).json({ code: 'INVALID_REQUEST_ID', message: 'A valid client request ID is required.' });
+        }
+        res.json(await studyService.generateSummary({
+          owner: req.user.userId,
+          documentId: req.params.documentId,
+          clientRequestId,
+          input: req.body,
+        }));
+      } catch (error) {
+        sendError(res, error);
+      }
+    }
+  );
+
+  router.post(
+    '/documents/:documentId/quizzes',
+    ...(sendLimiter ? [sendLimiter] : []),
+    async (req, res) => {
+      try {
+        if (!validateConversationId(req.params.documentId)) {
+          return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid document ID.' });
+        }
+        const fields = Object.keys(req.body || {});
+        if (fields.some((field) => !['clientRequestId', 'count', 'difficulty', 'language'].includes(field))) {
+          return res.status(400).json({ code: 'INVALID_INPUT', message: 'Unexpected quiz fields.' });
+        }
+        const clientRequestId = String(req.body?.clientRequestId || '');
+        if (!REQUEST_ID_PATTERN.test(clientRequestId)) {
+          return res.status(400).json({ code: 'INVALID_REQUEST_ID', message: 'A valid client request ID is required.' });
+        }
+        res.json(await studyService.generateQuiz({
+          owner: req.user.userId,
+          documentId: req.params.documentId,
+          clientRequestId,
+          input: req.body,
+        }));
+      } catch (error) {
+        sendError(res, error);
+      }
+    }
+  );
+
+  router.post('/quizzes/:quizId/attempts', async (req, res) => {
+    try {
+      if (!validateConversationId(req.params.quizId) || Object.keys(req.body || {}).length) {
+        return res.status(400).json({ code: 'INVALID_INPUT', message: 'Invalid quiz attempt request.' });
+      }
+      res.status(201).json(await studyService.startAttempt(req.user.userId, req.params.quizId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.get('/quiz-attempts/:attemptId', async (req, res) => {
+    try {
+      if (!validateConversationId(req.params.attemptId)) {
+        return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid attempt ID.' });
+      }
+      res.json(await studyService.getAttempt(req.user.userId, req.params.attemptId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.patch('/quiz-attempts/:attemptId/answers', async (req, res) => {
+    try {
+      if (!validateConversationId(req.params.attemptId) || Object.keys(req.body || {}).some((field) => !['questionIndex', 'selectedOptionIndex'].includes(field))) {
+        return res.status(400).json({ code: 'INVALID_INPUT', message: 'Invalid answer request.' });
+      }
+      res.json(await studyService.saveAnswer(
+        req.user.userId,
+        req.params.attemptId,
+        req.body?.questionIndex,
+        req.body?.selectedOptionIndex
+      ));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.post('/quiz-attempts/:attemptId/submit', async (req, res) => {
+    try {
+      if (!validateConversationId(req.params.attemptId) || Object.keys(req.body || {}).length) {
+        return res.status(400).json({ code: 'INVALID_INPUT', message: 'Invalid submit request.' });
+      }
+      res.json(await studyService.submitAttempt(req.user.userId, req.params.attemptId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.get('/summaries/:summaryId/sources/:chunkId', async (req, res) => {
+    try {
+      if (![req.params.summaryId, req.params.chunkId].every(validateConversationId)) {
+        return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid source reference.' });
+      }
+      res.json(await studyService.summarySource(req.user.userId, req.params.summaryId, req.params.chunkId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.get('/quiz-attempts/:attemptId/sources/:questionIndex/:chunkId', async (req, res) => {
+    try {
+      const questionIndex = Number(req.params.questionIndex);
+      if (!validateConversationId(req.params.attemptId) || !validateConversationId(req.params.chunkId) || !Number.isInteger(questionIndex) || questionIndex < 0) {
+        return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid source reference.' });
+      }
+      res.json(await studyService.attemptSource(req.user.userId, req.params.attemptId, questionIndex, req.params.chunkId));
     } catch (error) {
       sendError(res, error);
     }

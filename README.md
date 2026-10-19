@@ -128,6 +128,8 @@ ALLOWED_ORIGINS=http://localhost:5173
 
 AI Tutor Phase 2 private-document RAG architecture, privacy lifecycle, configuration, and beta rollout steps are documented in [docs/ai-tutor-document-rag.md](docs/ai-tutor-document-rag.md).
 
+AI Tutor Phase 3A document summaries, practice quizzes, grading/privacy boundaries, configuration, and limited-beta rollout steps are documented in [docs/ai-tutor-study-tools.md](docs/ai-tutor-study-tools.md).
+
 ```bash
 # Backend (if tests exist)
 cd backend

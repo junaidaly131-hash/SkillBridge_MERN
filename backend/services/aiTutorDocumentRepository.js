@@ -6,6 +6,10 @@ import AiTutorIngestionSlot from '../models/AiTutorIngestionSlot.js';
 import AiTutorIngestionUsage from '../models/AiTutorIngestionUsage.js';
 import AiTutorMessage from '../models/AiTutorMessage.js';
 import AiTutorRequest from '../models/AiTutorRequest.js';
+import AiTutorQuiz from '../models/AiTutorQuiz.js';
+import AiTutorQuizAttempt from '../models/AiTutorQuizAttempt.js';
+import AiTutorStudyRequest from '../models/AiTutorStudyRequest.js';
+import AiTutorSummary from '../models/AiTutorSummary.js';
 import { utcBucket } from './aiTutorRepository.js';
 
 const isDuplicateKey = (error) => error?.code === 11000;
@@ -196,6 +200,12 @@ export class MongoAiTutorDocumentRepository {
   async deleteDocumentContent(owner, documentId) {
     const conversations = await AiTutorConversation.find({ owner, document: documentId }).select('_id');
     const conversationIds = conversations.map((conversation) => conversation._id);
+    // Study artifacts contain private derived document content. Remove them
+    // before the source chunks so an interrupted cleanup cannot orphan them.
+    await AiTutorQuizAttempt.deleteMany({ owner, document: documentId });
+    await AiTutorQuiz.deleteMany({ owner, document: documentId });
+    await AiTutorSummary.deleteMany({ owner, document: documentId });
+    await AiTutorStudyRequest.deleteMany({ owner, document: documentId });
     await AiTutorDocumentChunk.deleteMany({ owner, document: documentId });
     if (conversationIds.length) {
       await AiTutorMessage.deleteMany({ owner, conversation: { $in: conversationIds } });

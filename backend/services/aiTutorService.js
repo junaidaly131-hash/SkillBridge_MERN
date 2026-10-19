@@ -169,6 +169,15 @@ export class AiTutorService {
         enabled: Boolean(availability.available && this.config.documentRagEnabled),
         externalEmbeddings: true,
       },
+      studyTools: {
+        enabled: Boolean(
+          availability.available &&
+          this.config.documentRagEnabled &&
+          this.config.studyToolsEnabled
+        ),
+        summaryLanguages: ['english', 'urdu', 'roman-urdu'],
+        quizQuestionCounts: [5, 10],
+      },
     };
   }
 

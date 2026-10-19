@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import apiClient from "../api/client";
 import TutorMarkdown from "../components/AITutor/TutorMarkdown";
+import StudyToolsPanel from "../components/AITutor/StudyToolsPanel";
 import ConfirmModal from "../components/Modal/ConfirmModal";
 
 const SUGGESTIONS = [
@@ -82,6 +83,7 @@ function AITutorPage() {
   const [documentDeleteTarget, setDocumentDeleteTarget] = useState(null);
   const [sourceDrawer, setSourceDrawer] = useState(null);
   const [loadingSource, setLoadingSource] = useState(false);
+  const [workspaceTab, setWorkspaceTab] = useState("chat");
 
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -223,6 +225,7 @@ function AITutorPage() {
     }
     selectedRef.current = conversationId;
     const conversation = conversations.find((item) => item.id === conversationId);
+    setWorkspaceTab("chat");
     setChatMode(conversation?.mode || "general");
     if (conversation?.document?.id) setSelectedDocumentId(conversation.document.id);
     setSelectedId(conversationId);
@@ -233,6 +236,7 @@ function AITutorPage() {
 
   const switchChatMode = (mode) => {
     setChatMode(mode);
+    setWorkspaceTab("chat");
     const first = conversations.find((conversation) => (conversation.mode || "general") === mode);
     selectedRef.current = first?.id || null;
     setSelectedId(first?.id || null);
@@ -322,6 +326,21 @@ function AITutorPage() {
       const response = await apiClient.get(
         `/ai-tutor/conversations/${selectedId}/messages/${message.id}/sources/${source.chunkId}`
       );
+      setSourceDrawer(response.data);
+    } catch (error) {
+      setSourceDrawer(null);
+      setSendError(error.response?.data?.message || "Couldn't load that source excerpt.");
+    } finally {
+      setLoadingSource(false);
+    }
+  };
+
+  const openStudySource = async (endpoint, source) => {
+    setLoadingSource(true);
+    setSendError("");
+    setSourceDrawer({ sourceId: source.sourceId, label: source.label, loading: true });
+    try {
+      const response = await apiClient.get(endpoint);
       setSourceDrawer(response.data);
     } catch (error) {
       setSourceDrawer(null);
@@ -574,6 +593,7 @@ function AITutorPage() {
                           setSelectedDocumentId(document.id);
                           setSelectedId(null);
                           setMessages([]);
+                          setWorkspaceTab("chat");
                         }}
                         disabled={document.status !== "ready"}
                         className="flex-1 min-w-0 text-left disabled:cursor-default"
@@ -711,13 +731,40 @@ function AITutorPage() {
             )}
           </header>
 
+          {chatMode === "document" && selectedDocument?.status === "ready" && status?.studyTools?.enabled && (
+            <nav className="shrink-0 border-b border-[#E5E5E5] bg-white px-3 sm:px-6" aria-label="Document learning tools">
+              <div className="flex gap-1 overflow-x-auto py-2">
+                {[
+                  ["chat", "Chat"],
+                  ["summary", "Summary"],
+                  ["quiz", "Practice quiz"],
+                ].map(([value, label]) => (
+                  <button
+                    type="button"
+                    key={value}
+                    onClick={() => {
+                      setWorkspaceTab(value);
+                      setSendError("");
+                    }}
+                    aria-current={workspaceTab === value ? "page" : undefined}
+                    className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
+                      workspaceTab === value ? "bg-light-teal text-teal" : "text-gray hover:bg-light-gray hover:text-black"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </nav>
+          )}
+
           <div
             ref={scrollRef}
             onScroll={(event) => {
               const node = event.currentTarget;
               nearBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
             }}
-            className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-light-bg px-3 sm:px-6 py-5"
+            className={`${workspaceTab === "chat" ? "flex-1" : "hidden"} min-h-0 overflow-y-auto custom-scrollbar bg-light-bg px-3 sm:px-6 py-5`}
           >
             {hasMore && (
               <div className="text-center mb-5">
@@ -756,8 +803,9 @@ function AITutorPage() {
                     <p className="text-sm text-gray leading-6 mb-3">
                       Your message and relevant recent AI Tutor conversation history are sent to
                       Google Gemini to generate a response. If you upload a document, its text is
-                      extracted and sent to Google for embeddings; relevant excerpts are sent again
-                      when answering. Under Google&apos;s free-tier terms, submitted content may be used
+                      extracted and sent to Google for embeddings. Relevant excerpts are sent again
+                      for document answers and practice quizzes; a requested summary may send bounded
+                      sections covering the document. Under Google&apos;s free-tier terms, submitted content may be used
                       to improve Google products and may be reviewed by people.
                     </p>
                     <p className="text-sm text-gray leading-6 mb-4">
@@ -925,7 +973,25 @@ function AITutorPage() {
             )}
           </div>
 
-          <div className="shrink-0 border-t border-[#E5E5E5] bg-white px-3 sm:px-5 py-3">
+          {chatMode === "document" && workspaceTab !== "chat" && selectedDocument?.status === "ready" && (
+            <div className="flex flex-1 min-h-0 flex-col">
+              {sendError && (
+                <div className="mx-3 mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 sm:mx-6" role="alert">
+                  <AlertCircle className="shrink-0" size={14} /> {sendError}
+                </div>
+              )}
+              <StudyToolsPanel
+                mode={workspaceTab}
+                documentId={selectedDocument.id}
+                enabled={Boolean(status?.studyTools?.enabled)}
+                quotaExhausted={quotaExhausted}
+                onUsage={(usage) => usage && setStatus((current) => ({ ...current, usage }))}
+                onSource={openStudySource}
+              />
+            </div>
+          )}
+
+          <div className={`${workspaceTab === "chat" ? "block" : "hidden"} shrink-0 border-t border-[#E5E5E5] bg-white px-3 sm:px-5 py-3`}>
             {chatMode === "document" && selectedDocument?.status === "ready" && !quotaExhausted && (
               <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2 text-[11px] text-teal">
                 <CheckCircle2 size={13} className="shrink-0" />
