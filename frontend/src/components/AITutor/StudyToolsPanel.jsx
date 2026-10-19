@@ -247,7 +247,24 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
                 {workspace.summaries.map((summary) => <button type="button" key={summary.id} onClick={() => setActiveSummary(summary)} className={`shrink-0 rounded-xl border px-3 py-2 text-left text-xs ${activeSummary?.id === summary.id ? "border-teal bg-light-teal text-teal" : "border-[#E5E5E5] bg-white text-gray"}`}><span className="block font-semibold capitalize">{summary.length} · {summary.language.replace("-", " ")}</span><span>{summary.coverage?.status} coverage</span></button>)}
               </div>
             )}
-            {activeSummary ? <SummaryView summary={activeSummary} onSource={(source) => onSource(`/ai-tutor/summaries/${activeSummary.id}/sources/${source.chunkId}`, source)} /> : <div className="rounded-2xl border border-dashed border-[#D8D8D8] bg-white p-10 text-center text-sm text-gray">Choose options to create a grounded document summary.</div>}
+            {activeSummary ? (
+              <SummaryView
+                summary={activeSummary}
+                onSource={(source) =>
+                  onSource(`/ai-tutor/summaries/${activeSummary.id}/sources/${source.chunkId}`, source)
+                }
+              />
+            ) : (
+              <div className="mx-auto flex min-h-48 w-full max-w-2xl flex-col items-center justify-center rounded-2xl border border-dashed border-teal/30 bg-white px-6 py-10 text-center sm:min-h-56">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-light-teal text-teal">
+                  <BookOpen size={22} />
+                </div>
+                <h2 className="text-base font-bold text-black">No summary yet</h2>
+                <p className="mt-1.5 max-w-md text-sm leading-6 text-gray">
+                  Choose a language and length above, then generate a grounded document summary.
+                </p>
+              </div>
+            )}
           </>
         )}
 
