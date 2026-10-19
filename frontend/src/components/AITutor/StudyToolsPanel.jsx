@@ -3,6 +3,8 @@ import { BookOpen, CheckCircle2, FileText, Loader2, RefreshCcw } from "lucide-re
 import apiClient from "../../api/client";
 import { useToast } from "../../ui/Toast";
 import TutorMarkdown from "./TutorMarkdown";
+import FlashcardsPanel from "./FlashcardsPanel";
+import StudyProgressPanel from "./StudyProgressPanel";
 
 const LANGUAGES = [
   ["english", "English"],
@@ -91,7 +93,7 @@ function SummaryView({ summary, onSource }) {
 
 export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhausted, onUsage, onSource }) {
   const { error: showError } = useToast();
-  const [workspace, setWorkspace] = useState({ summaries: [], quizzes: [], attempts: [] });
+  const [workspace, setWorkspace] = useState({ summaries: [], quizzes: [], attempts: [], decks: [] });
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [language, setLanguage] = useState("english");
@@ -224,6 +226,8 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
     return <div className="flex-1 grid place-items-center"><Loader2 className="animate-spin text-teal" size={28} /></div>;
   }
 
+  if (mode === "progress") return <StudyProgressPanel />;
+
   return (
     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-light-bg p-3 sm:p-6">
       <div className="mx-auto max-w-4xl space-y-4">
@@ -319,6 +323,17 @@ export default function StudyToolsPanel({ mode, documentId, enabled, quotaExhaus
               </section>
             )}
           </>
+        )}
+
+        {mode === "flashcards" && (
+          <FlashcardsPanel
+            documentId={documentId}
+            decks={workspace.decks || []}
+            quotaExhausted={quotaExhausted}
+            onUsage={onUsage}
+            onRefresh={loadWorkspace}
+            onSource={onSource}
+          />
         )}
       </div>
     </div>

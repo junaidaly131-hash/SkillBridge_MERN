@@ -5,7 +5,7 @@ const aiTutorStudyRequestSchema = new mongoose.Schema(
     owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     document: { type: mongoose.Schema.Types.ObjectId, ref: 'AiTutorDocument', required: true },
     clientRequestId: { type: String, required: true, maxlength: 80 },
-    action: { type: String, enum: ['summary', 'quiz'], required: true },
+    action: { type: String, enum: ['summary', 'quiz', 'flashcards'], required: true },
     fingerprint: { type: String, required: true, maxlength: 64 },
     status: {
       type: String,
@@ -15,6 +15,7 @@ const aiTutorStudyRequestSchema = new mongoose.Schema(
     },
     summary: { type: mongoose.Schema.Types.ObjectId, ref: 'AiTutorSummary', default: null },
     quiz: { type: mongoose.Schema.Types.ObjectId, ref: 'AiTutorQuiz', default: null },
+    deck: { type: mongoose.Schema.Types.ObjectId, ref: 'AiTutorFlashcardDeck', default: null },
     safeErrorCode: { type: String, maxlength: 80, default: null },
     usage: {
       userRemaining: { type: Number, min: 0 },

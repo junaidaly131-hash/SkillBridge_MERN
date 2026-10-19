@@ -156,6 +156,33 @@ export function getAiTutorConfig() {
     studyQuizOutputTokens: boundedInteger(
       'AI_TUTOR_STUDY_QUIZ_OUTPUT_TOKENS', 4096, 1024, 8192, invalidVariables
     ),
+    studyFlashcardContextChars: boundedInteger(
+      'AI_TUTOR_STUDY_FLASHCARD_CONTEXT_CHARS', 36000, 5000, 70000, invalidVariables
+    ),
+    studyFlashcardMaxEvidenceChunks: boundedInteger(
+      'AI_TUTOR_STUDY_FLASHCARD_MAX_EVIDENCE_CHUNKS', 16, 4, 40, invalidVariables
+    ),
+    studyFlashcardOutputTokens: boundedInteger(
+      'AI_TUTOR_STUDY_FLASHCARD_OUTPUT_TOKENS', 6144, 2048, 8192, invalidVariables
+    ),
+    studyMaxDecksPerUser: boundedInteger(
+      'AI_TUTOR_STUDY_MAX_DECKS_PER_USER', 30, 1, 100, invalidVariables
+    ),
+    studyMaxDecksPerDocument: boundedInteger(
+      'AI_TUTOR_STUDY_MAX_DECKS_PER_DOCUMENT', 10, 1, 50, invalidVariables
+    ),
+    studyMaxCardsPerUser: boundedInteger(
+      'AI_TUTOR_STUDY_MAX_CARDS_PER_USER', 400, 10, 2000, invalidVariables
+    ),
+    studyMaxCardsPerDocument: boundedInteger(
+      'AI_TUTOR_STUDY_MAX_CARDS_PER_DOCUMENT', 100, 10, 500, invalidVariables
+    ),
+    studyReviewEventRetention: boundedInteger(
+      'AI_TUTOR_STUDY_REVIEW_EVENT_RETENTION', 100, 10, 500, invalidVariables
+    ),
+    studyProgressAttemptLimit: boundedInteger(
+      'AI_TUTOR_STUDY_PROGRESS_ATTEMPT_LIMIT', 20, 5, 50, invalidVariables
+    ),
     studyMaxOutputChars: boundedInteger(
       'AI_TUTOR_STUDY_MAX_OUTPUT_CHARS', 60000, 5000, 120000, invalidVariables
     ),

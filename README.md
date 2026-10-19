@@ -130,6 +130,8 @@ AI Tutor Phase 2 private-document RAG architecture, privacy lifecycle, configura
 
 AI Tutor Phase 3A document summaries, practice quizzes, grading/privacy boundaries, configuration, and limited-beta rollout steps are documented in [docs/ai-tutor-study-tools.md](docs/ai-tutor-study-tools.md).
 
+AI Tutor Phase 3B grounded flashcards, review scheduling, study progress, concurrency safeguards, configuration, and limited-beta rollout steps are documented in [docs/ai-tutor-flashcards-progress.md](docs/ai-tutor-flashcards-progress.md).
+
 ```bash
 # Backend (if tests exist)
 cd backend

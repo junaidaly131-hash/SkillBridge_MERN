@@ -177,6 +177,7 @@ export class AiTutorService {
         ),
         summaryLanguages: ['english', 'urdu', 'roman-urdu'],
         quizQuestionCounts: [5, 10],
+        flashcardCounts: [10, 20],
       },
     };
   }

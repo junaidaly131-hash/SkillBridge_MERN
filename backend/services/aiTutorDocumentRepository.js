@@ -10,6 +10,9 @@ import AiTutorQuiz from '../models/AiTutorQuiz.js';
 import AiTutorQuizAttempt from '../models/AiTutorQuizAttempt.js';
 import AiTutorStudyRequest from '../models/AiTutorStudyRequest.js';
 import AiTutorSummary from '../models/AiTutorSummary.js';
+import AiTutorFlashcardDeck from '../models/AiTutorFlashcardDeck.js';
+import AiTutorFlashcardReviewState from '../models/AiTutorFlashcardReviewState.js';
+import AiTutorFlashcardSession from '../models/AiTutorFlashcardSession.js';
 import { utcBucket } from './aiTutorRepository.js';
 
 const isDuplicateKey = (error) => error?.code === 11000;
@@ -204,6 +207,9 @@ export class MongoAiTutorDocumentRepository {
     const conversationIds = conversations.map((conversation) => conversation._id);
     // Study artifacts contain private derived document content. Remove them
     // before the source chunks so an interrupted cleanup cannot orphan them.
+    await AiTutorFlashcardSession.deleteMany({ owner, document: documentId });
+    await AiTutorFlashcardReviewState.deleteMany({ owner, document: documentId });
+    await AiTutorFlashcardDeck.deleteMany({ owner, document: documentId });
     await AiTutorQuizAttempt.deleteMany({ owner, document: documentId });
     await AiTutorQuiz.deleteMany({ owner, document: documentId });
     await AiTutorSummary.deleteMany({ owner, document: documentId });

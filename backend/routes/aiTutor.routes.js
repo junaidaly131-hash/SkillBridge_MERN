@@ -77,6 +77,7 @@ export function createAiTutorRouter(options = {}) {
           generate: async () => { throw new Error('AI Tutor provider is not configured.'); },
           generateStudySummary: async () => { throw new Error('AI Tutor provider is not configured.'); },
           generateStudyQuiz: async () => { throw new Error('AI Tutor provider is not configured.'); },
+          generateStudyFlashcards: async () => { throw new Error('AI Tutor provider is not configured.'); },
         });
   const embeddingProvider =
     options.embeddingProvider ||
@@ -249,6 +250,127 @@ export function createAiTutorRouter(options = {}) {
       }
     }
   );
+
+  router.post(
+    '/documents/:documentId/flashcard-decks',
+    ...(sendLimiter ? [sendLimiter] : []),
+    async (req, res) => {
+      try {
+        if (!validateConversationId(req.params.documentId)) {
+          return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid document ID.' });
+        }
+        if (Object.keys(req.body || {}).some((field) => !['clientRequestId', 'count', 'language'].includes(field))) {
+          return res.status(400).json({ code: 'INVALID_INPUT', message: 'Invalid flashcard options.' });
+        }
+        const clientRequestId = String(req.body?.clientRequestId || '');
+        if (!REQUEST_ID_PATTERN.test(clientRequestId)) {
+          return res.status(400).json({ code: 'INVALID_REQUEST_ID', message: 'A valid client request ID is required.' });
+        }
+        res.json(await studyService.generateFlashcards({
+          owner: req.user.userId,
+          documentId: req.params.documentId,
+          clientRequestId,
+          input: req.body,
+        }));
+      } catch (error) {
+        sendError(res, error);
+      }
+    }
+  );
+
+  router.delete('/flashcard-decks/:deckId', async (req, res) => {
+    try {
+      if (!validateConversationId(req.params.deckId)) {
+        return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid deck ID.' });
+      }
+      res.json(await studyService.deleteDeck(req.user.userId, req.params.deckId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.post('/flashcard-decks/:deckId/review-sessions', async (req, res) => {
+    try {
+      if (
+        !validateConversationId(req.params.deckId) ||
+        Object.keys(req.body || {}).some((field) => field !== 'mode')
+      ) {
+        return res.status(400).json({ code: 'INVALID_INPUT', message: 'Invalid review request.' });
+      }
+      res.status(201).json(await studyService.startReviewSession(
+        req.user.userId,
+        req.params.deckId,
+        req.body?.mode
+      ));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.get('/flashcard-review-sessions/:sessionId', async (req, res) => {
+    try {
+      if (!validateConversationId(req.params.sessionId)) {
+        return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid review session ID.' });
+      }
+      res.json(await studyService.getReviewSession(req.user.userId, req.params.sessionId));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.post('/flashcard-review-sessions/:sessionId/reveal', async (req, res) => {
+    try {
+      if (!validateConversationId(req.params.sessionId) || Object.keys(req.body || {}).length) {
+        return res.status(400).json({ code: 'INVALID_INPUT', message: 'Invalid reveal request.' });
+      }
+      res.json(await studyService.getReviewSession(req.user.userId, req.params.sessionId, true));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.post('/flashcard-review-sessions/:sessionId/rate', async (req, res) => {
+    try {
+      if (
+        !validateConversationId(req.params.sessionId) ||
+        Object.keys(req.body || {}).some((field) => ![
+          'eventId', 'rating', 'expectedStateVersion', 'expectedSessionVersion',
+        ].includes(field))
+      ) {
+        return res.status(400).json({ code: 'INVALID_INPUT', message: 'Invalid review rating.' });
+      }
+      res.json(await studyService.rateFlashcard(req.user.userId, req.params.sessionId, req.body));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.get('/flashcard-decks/:deckId/cards/:cardId/sources/:chunkId', async (req, res) => {
+    try {
+      if (![req.params.deckId, req.params.cardId, req.params.chunkId].every(validateConversationId)) {
+        return res.status(400).json({ code: 'INVALID_ID', message: 'Invalid source reference.' });
+      }
+      res.json(await studyService.flashcardSource(
+        req.user.userId,
+        req.params.deckId,
+        req.params.cardId,
+        req.params.chunkId
+      ));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  router.get('/study-progress', async (req, res) => {
+    try {
+      if (Object.keys(req.query || {}).some((field) => field !== 'timezone')) {
+        return res.status(400).json({ code: 'INVALID_INPUT', message: 'Invalid progress query.' });
+      }
+      res.json(await studyService.progress(req.user.userId, String(req.query.timezone || 'UTC')));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
 
   router.post('/quizzes/:quizId/attempts', async (req, res) => {
     try {

@@ -761,6 +761,8 @@ function AITutorPage() {
                   ["chat", "Chat"],
                   ["summary", "Summary"],
                   ["quiz", "Practice quiz"],
+                  ["flashcards", "Flashcards"],
+                  ["progress", "Progress"],
                 ].map(([value, label]) => (
                   <button
                     type="button"
