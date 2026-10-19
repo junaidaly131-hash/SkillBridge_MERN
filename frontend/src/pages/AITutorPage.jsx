@@ -47,6 +47,7 @@ function resetLabel(resetAt) {
 function documentStatusLabel(document) {
   if (document.status === "ready") return `${document.chunkCount} indexed sections`;
   if (document.status === "processing") return "Extracting and indexing...";
+  if (document.status === "deleting") return "Deletion pending — click delete to retry";
   const labels = {
     DOCUMENT_SCANNED_OR_EMPTY: "No extractable text found",
     PDF_PASSWORD_PROTECTED: "Password-protected PDF",
@@ -313,6 +314,36 @@ function AITutorPage() {
       }
       setDocumentDeleteTarget(null);
     } catch (error) {
+      // A previous request may have completed on the server even if its
+      // response was lost. Reconcile with the server instead of leaving a
+      // stale card that can never be selected or deleted.
+      try {
+        const [documentsResponse, conversationsResponse] = await Promise.all([
+          apiClient.get("/ai-tutor/documents"),
+          apiClient.get("/ai-tutor/conversations?page=1&limit=30"),
+        ]);
+        const serverDocuments = documentsResponse.data.documents || [];
+        const serverConversations = conversationsResponse.data.conversations || [];
+        setDocuments(serverDocuments);
+        setConversations(serverConversations);
+        if (!serverDocuments.some((document) => document.id === documentDeleteTarget.id)) {
+          if (selectedDocumentId === documentDeleteTarget.id) {
+            setSelectedDocumentId(
+              serverDocuments.find((document) => document.status === "ready")?.id || null
+            );
+          }
+          if (!serverConversations.some((conversation) => conversation.id === selectedId)) {
+            selectedRef.current = null;
+            setSelectedId(null);
+            setMessages([]);
+          }
+          setDocumentDeleteTarget(null);
+          setSendError("");
+          return;
+        }
+      } catch {
+        // Preserve the original deletion error when reconciliation also fails.
+      }
       setSendError(error.response?.data?.message || "Couldn't delete that document.");
     } finally {
       setDeleting(false);

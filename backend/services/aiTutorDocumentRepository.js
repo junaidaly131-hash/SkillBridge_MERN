@@ -191,7 +191,9 @@ export class MongoAiTutorDocumentRepository {
 
   async markDeleting(owner, documentId) {
     return AiTutorDocument.findOneAndUpdate(
-      { _id: documentId, owner, status: { $in: ['processing', 'ready', 'failed'] } },
+      // `deleting` is intentionally accepted so cleanup can be resumed after
+      // a process restart or a transient database failure between phases.
+      { _id: documentId, owner, status: { $in: ['processing', 'ready', 'failed', 'deleting'] } },
       { $set: { status: 'deleting', deletedAt: new Date() }, $unset: { processingToken: 1 } },
       { new: true }
     ).lean();

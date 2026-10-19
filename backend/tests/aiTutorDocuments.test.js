@@ -360,6 +360,16 @@ test('deleting a document is owner-scoped and reports linked chat deletion', asy
   assert.deepEqual(repository.deletedOwners, ['owner-a']);
 });
 
+test('a document stuck in deleting state can resume its cleanup safely', async () => {
+  const repository = new MemoryDocumentRepository();
+  repository.documents.push({ _id: 'doc-pending', owner: 'owner-a', status: 'deleting' });
+  const service = new AiTutorDocumentService({ config, repository, embeddingProvider: {}, logger: { info() {} } });
+  const result = await service.delete('owner-a', 'doc-pending');
+  assert.equal(result.deleted, true);
+  assert.equal(repository.documents[0].status, 'deleted');
+  assert.deepEqual(repository.deletedOwners, ['owner-a']);
+});
+
 test('12-question mocked retrieval evaluation covers multilingual, follow-up, exact, absent, and injection cases', () => {
   const report = runMockedRetrievalEvaluation();
   assert.equal(report.total, 12);
