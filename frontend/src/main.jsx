@@ -5,8 +5,16 @@ import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import App from './App.jsx'
 import store from './store'
+import { logout } from './store/authSlice'
+import { setSessionFailureHandler } from './api/client'
+import { disconnectSocket } from './socket'
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || ''
+
+setSessionFailureHandler(() => {
+  store.dispatch(logout());
+  disconnectSocket();
+});
 
 if (!googleClientId) {
   console.warn('VITE_GOOGLE_CLIENT_ID is not set in environment variables. Google OAuth will not work.');

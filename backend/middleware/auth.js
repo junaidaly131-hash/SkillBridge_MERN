@@ -6,12 +6,19 @@ export const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
+    return res.status(401).json({
+      code: 'AUTH_REQUIRED',
+      message: 'Access token required',
+    });
   }
 
   jwt.verify(token, process.env.JWT_SECRET, async (err, user) => {
     if (err) {
-      return res.status(403).json({ message: 'Invalid or expired token' });
+      const expired = err.name === 'TokenExpiredError';
+      return res.status(401).json({
+        code: expired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
+        message: expired ? 'Session expired' : 'Invalid access token',
+      });
     }
 
     // A suspended user's JWT stays technically valid until it expires, so an
