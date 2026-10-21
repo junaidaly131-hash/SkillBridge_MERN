@@ -11,7 +11,7 @@ const navItems = [
   { name: "Credits", path: "/credits", icon: CreditCard },
   { name: "Purchase History", path: "/credits/history", icon: Receipt },
   { name: "Chat & Schedule", path: "/chat", icon: MessageSquare },
-  { name: "AI Tutor", path: "/ai-tutor", icon: Sparkles },
+  { name: "AI Tutor", path: "/ai-tutor", icon: Sparkles, isNew: true },
   { name: "Session History", path: "/meetings/history", icon: History },
   { name: "Feedback", path: "/feedback", icon: MessageCircle },
   { name: "Support", path: "/support", icon: LifeBuoy },
@@ -30,10 +30,13 @@ const adminNavItems = [
   { name: "Audit Log", path: "/admin/audit-log", icon: ScrollText },
 ];
 
+const AI_TUTOR_BADGE_STORAGE_KEY = "skillbridge:ai-tutor-new-badge:v1";
+
 function Sidebar() {
   const location = useLocation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const user = useSelector((state) => state.auth.user);
   // Mobile drawer open/closed.
   const [isOpen, setIsOpen] = useState(false);
   // Desktop rail. Remembered so it survives a reload, like Upwork's.
@@ -44,11 +47,35 @@ function Sidebar() {
       return false;
     }
   });
-  const user = useSelector((state) => state.auth.user);
+  const [showAiTutorBadge, setShowAiTutorBadge] = useState(() => {
+    try {
+      if (location.pathname.startsWith("/ai-tutor")) {
+        localStorage.setItem(AI_TUTOR_BADGE_STORAGE_KEY, "seen");
+        return false;
+      }
+      return localStorage.getItem(AI_TUTOR_BADGE_STORAGE_KEY) !== "seen";
+    } catch {
+      return !location.pathname.startsWith("/ai-tutor");
+    }
+  });
   const items = user?.role === "admin" ? adminNavItems : navItems;
 
   const toggleSidebar = () => setIsOpen(!isOpen);
   const closeSidebar = () => setIsOpen(false);
+
+  const markAiTutorBadgeSeen = () => {
+    setShowAiTutorBadge(false);
+    try {
+      localStorage.setItem(AI_TUTOR_BADGE_STORAGE_KEY, "seen");
+    } catch {
+      // Private mode - hiding the badge for this session is enough.
+    }
+  };
+
+  const handleNavClick = (item) => {
+    if (item.isNew) markAiTutorBadgeSeen();
+    closeSidebar();
+  };
 
   const setCollapsed = (next) => {
     setIsCollapsed(next);
@@ -179,7 +206,7 @@ function Sidebar() {
                 <li key={item.name}>
                   <Link
                     to={item.path}
-                    onClick={closeSidebar}
+                    onClick={() => handleNavClick(item)}
                     title={isCollapsed ? item.name : undefined}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg font-family-poppins text-sm transition-all ${
                       isActive
@@ -187,8 +214,25 @@ function Sidebar() {
                         : "text-gray hover:bg-gray-50"
                     } ${isCollapsed ? "lg:justify-center lg:px-0" : ""}`}
                   >
-                    <Icon size={24} className="shrink-0" />
+                    <span className="relative shrink-0">
+                      <Icon size={24} />
+                      {item.isNew && showAiTutorBadge && isCollapsed && (
+                        <span
+                          className="absolute -right-1.5 -top-1 hidden h-2.5 w-2.5 rounded-full bg-[#FF4D6D] ring-2 ring-white lg:block"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </span>
                     <span className={isCollapsed ? "lg:hidden" : ""}>{item.name}</span>
+                    {item.isNew && showAiTutorBadge && (
+                      <span
+                        className={`ml-auto rounded-full bg-[#FF4D6D] px-2 py-1 text-[10px] font-semibold leading-none text-white ${
+                          isCollapsed ? "lg:hidden" : ""
+                        }`}
+                      >
+                        New
+                      </span>
+                    )}
                   </Link>
                 </li>
               );
