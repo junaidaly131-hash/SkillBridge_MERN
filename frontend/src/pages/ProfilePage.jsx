@@ -49,6 +49,7 @@ function ProfilePage() {
   const [extraDocSlots, setExtraDocSlots] = useState([]);
   const [verificationFileError, setVerificationFileError] = useState("");
   const [submittingVerification, setSubmittingVerification] = useState(false);
+  const [savingMarketing, setSavingMarketing] = useState(false);
 
   useEffect(() => {
     dispatch(fetchProfile());
@@ -121,6 +122,19 @@ function ProfilePage() {
 
   const isAdmin = profile?.role === "admin";
   const teachesSkills = (profile?.skillsTeaching?.length || 0) > 0;
+
+  const updateMarketingPreference = async (subscribed) => {
+    setSavingMarketing(true);
+    try {
+      await apiClient.patch('/users/me/marketing-preference', { subscribed });
+      await dispatch(fetchProfile()).unwrap();
+      showSuccess(subscribed ? 'Product updates enabled.' : 'Marketing emails turned off.');
+    } catch (error) {
+      showError(error.response?.data?.message || error || "Couldn't update your email preference.");
+    } finally {
+      setSavingMarketing(false);
+    }
+  };
 
   // A student only has to prove who they are, so only the ID slot is offered up
   // front - asking a learner for a degree is noise. A teacher is additionally
@@ -706,6 +720,23 @@ function ProfilePage() {
             </div>
           )}
       </div>
+      )}
+
+      {!isAdmin && (
+        <section className="mb-6 rounded-2xl border border-[#E5E5E5] bg-white p-5 shadow-sm sm:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-2"><Mail className="text-teal" size={22}/><h2 className="text-lg font-bold text-black">Email preferences</h2></div>
+              <p className="mt-2 text-sm leading-6 text-gray">Choose whether SkillBridge may send occasional product updates. Account, security, payment and session emails are not affected.</p>
+              <p className="mt-2 text-xs font-semibold text-gray">Current choice: <span className="capitalize text-black">{(profile.marketingPreference?.status || 'unknown').replace('_', ' ')}</span></p>
+              {!profile.emailVerifiedAt && <p className="mt-2 text-xs text-orange-700">Verify your email before opting in.</p>}
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => updateMarketingPreference(true)} disabled={savingMarketing || !profile.emailVerifiedAt || profile.marketingPreference?.status === 'opted_in'} className="rounded-xl bg-teal-button px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Opt in</button>
+              <button type="button" onClick={() => updateMarketingPreference(false)} disabled={savingMarketing || profile.marketingPreference?.status === 'opted_out'} className="rounded-xl border border-[#D0D0D0] px-4 py-2.5 text-sm font-semibold text-dark-blue disabled:opacity-40">Opt out</button>
+            </div>
+          </div>
+        </section>
       )}
 
       {/* Modals */}

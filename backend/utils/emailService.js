@@ -53,6 +53,56 @@ async function getResend() {
   return resendClient;
 }
 
+// Campaign mail deliberately has no SMTP fallback: queue semantics, stable
+// idempotency and webhook message ids depend on one provider.
+export async function sendMarketingEmail({ from, to, subject, html, text, headers, tags, idempotencyKey }) {
+  const resend = await getResend();
+  if (!resend) {
+    const error = new Error('Resend is not configured');
+    error.code = 'CAMPAIGN_CONFIG_MISSING';
+    throw error;
+  }
+
+  return sendMarketingEmailWithClient(resend, { from, to, subject, html, text, headers, tags, idempotencyKey });
+}
+
+// Exported for a provider-contract unit test; production callers use the
+// wrapper above so they cannot supply their own client.
+export async function sendMarketingEmailWithClient(resend, { from, to, subject, html, text, headers, tags, idempotencyKey }) {
+  try {
+    const { data, error } = await resend.emails.send(
+      { from, to, subject, html, text, headers, ...(tags?.length ? { tags } : {}) },
+      { idempotencyKey }
+    );
+    if (error) {
+      const providerError = new Error(error.message || 'Resend rejected the message');
+      providerError.code = error.name || error.code || 'RESEND_REJECTED';
+      providerError.statusCode = error.statusCode || error.status;
+      throw providerError;
+    }
+    return { messageId: data?.id };
+  } catch (error) {
+    if (!error.code) error.code = error.name || 'RESEND_ERROR';
+    throw error;
+  }
+}
+
+export async function verifyResendWebhook(payload, headers) {
+  const resend = await getResend();
+  if (!resend || !process.env.RESEND_WEBHOOK_SECRET) {
+    throw new Error('Resend webhook verification is not configured');
+  }
+  return resend.webhooks.verify({
+    payload: Buffer.isBuffer(payload) ? payload.toString('utf8') : String(payload),
+    headers: {
+      id: headers['svix-id'],
+      timestamp: headers['svix-timestamp'],
+      signature: headers['svix-signature'],
+    },
+    webhookSecret: process.env.RESEND_WEBHOOK_SECRET,
+  });
+}
+
 /**
  * The one place a message actually leaves from. Returns a { messageId }-ish
  * object so existing callers can keep logging it.

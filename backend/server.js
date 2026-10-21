@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import { connectDB } from './config/database.js';
 import { describeSafepayConfig } from './config/safepay.js';
 import { describeAiTutorConfig } from './config/aiTutor.js';
+import { describeEmailCampaignConfig } from './config/emailCampaign.js';
 import { assertJwtConfig } from './config/jwt.js';
 import publicRoutes from './routes/public.routes.js';
 import authRoutes from './routes/auth.routes.js';
@@ -23,6 +24,9 @@ import paymentRoutes from './routes/payment.routes.js';
 import supportRoutes from './routes/support.routes.js';
 import payoutRoutes from './routes/payout.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import adminEmailCampaignRoutes from './routes/adminEmailCampaign.routes.js';
+import emailPreferencesRoutes from './routes/emailPreferences.routes.js';
+import resendWebhookRoutes from './routes/resendWebhook.routes.js';
 import verificationRoutes from './routes/verification.routes.js';
 import notificationsRoutes from './routes/notifications.routes.js';
 import { createAiTutorRouter } from './routes/aiTutor.routes.js';
@@ -32,6 +36,7 @@ import User from './models/User.js';
 import { setSocketIO, notifyUser } from './utils/notify.js';
 import { startMeetingReminderJob } from './jobs/meetingReminders.js';
 import { startMeetingCompletionJob } from './jobs/completeMeetings.js';
+import { startEmailCampaignWorker } from './jobs/emailCampaignWorker.js';
 import { isBlockedBetween } from './utils/blocking.js';
 import { addOnlineSocket, removeOnlineSocket, isUserOnline, getOnlineUserIds } from './utils/presence.js';
 
@@ -97,6 +102,9 @@ app.use(cors({
 // that would reorder keys and break the digest. express.json() then skips the
 // body it finds already parsed here.
 app.use('/api/payments/safepay-webhook', express.raw({ type: '*/*' }));
+// Resend signs the exact raw bytes too. Its router performs signature
+// verification before parsing or acting on the event.
+app.use('/api/webhooks/resend', resendWebhookRoutes);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -134,7 +142,9 @@ app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/payouts', payoutRoutes);
+app.use('/api/admin/email-campaigns', adminEmailCampaignRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/email-preferences', emailPreferencesRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/ai-tutor', createAiTutorRouter());
@@ -335,7 +345,9 @@ server.listen(PORT, () => {
   // Names and set/missing only, never values - see describeSafepayConfig.
   describeSafepayConfig();
   describeAiTutorConfig();
+  describeEmailCampaignConfig();
   startMeetingReminderJob();
   startMeetingCompletionJob();
+  startEmailCampaignWorker();
 });
 

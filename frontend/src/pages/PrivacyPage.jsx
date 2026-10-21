@@ -10,7 +10,7 @@ function PrivacyPage() {
   });
 
   return (
-    <LegalLayout title="Privacy Policy" lastUpdated="October 7, 2026">
+    <LegalLayout title="Privacy Policy" lastUpdated="October 21, 2026">
       <h2>1. Information We Collect</h2>
       <ul>
         <li>
@@ -48,6 +48,8 @@ function PrivacyPage() {
         </li>
       </ul>
 
+      <p><strong>Email preferences:</strong> we store whether you explicitly opted in or out of optional product and feature announcements.</p>
+
       <h2>2. How We Use Your Information</h2>
       <ul>
         <li>
@@ -55,6 +57,7 @@ function PrivacyPage() {
           enabling video sessions).
         </li>
         <li>To communicate with you about your account, sessions, and transactions.</li>
+        <li>To send optional product announcements only after an explicit opt-in. You can opt out from your profile or from every campaign email.</li>
         <li>To detect and prevent fraud or misuse.</li>
         <li>We do not sell your personal information to third parties.</li>
       </ul>
@@ -72,7 +75,7 @@ function PrivacyPage() {
           <strong>8x8 (JaaS)</strong> — video calling
         </li>
         <li>
-          <strong>Email provider</strong> — transactional email
+          <strong>Resend</strong> — transactional email and consent-based product announcements
         </li>
         <li>
           <strong>Google Gemini</strong> — generates AI Tutor responses. When you use AI Tutor,
@@ -87,6 +90,7 @@ function PrivacyPage() {
         We retain your account and transaction data for as long as your account is active, and as
         required by applicable financial record-keeping regulations after account closure.
       </p>
+      <p>Campaign delivery records and provider events may be retained for the configured operational retention period (normally 365 days) for delivery diagnostics, suppression enforcement, and audit purposes. Resend processes campaign delivery data under its own privacy practices.</p>
       <p>
         Deleting an AI Tutor conversation removes SkillBridge&apos;s stored copy of its messages. It
         does not necessarily remove content already processed or retained by Google under its own

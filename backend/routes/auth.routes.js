@@ -215,14 +215,16 @@ router.post('/google', async (req, res) => {
       // Update googleId if not set
       if (!user.googleId) {
         user.googleId = googleSubject;
-        await user.save();
       }
+      if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date();
+      if (user.isModified()) await user.save();
     } else {
       // Create new user
       user = await User.create({
         name,
         email,
         googleId: googleSubject,
+        emailVerifiedAt: new Date(),
         password: undefined, // OAuth users don't need password
       });
     }
@@ -343,6 +345,11 @@ router.post('/verify', codeRedeemLimiter, async (req, res) => {
 
     if (user.isSuspended) {
       return res.status(403).json({ message: 'Your account has been suspended. Contact support for help.' });
+    }
+
+    if (!user.emailVerifiedAt) {
+      user.emailVerifiedAt = new Date();
+      await user.save();
     }
 
     // Generate JWT token

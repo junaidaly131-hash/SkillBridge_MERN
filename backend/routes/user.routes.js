@@ -5,6 +5,7 @@ import { CreditWallet } from '../models/Credit.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { uploadAvatar, uploadCertification, deleteFromCloudinary } from '../config/cloudinary.js';
 import { documentFetchLimiter } from '../middleware/rateLimit.js';
+import MarketingSuppression from '../models/MarketingSuppression.js';
 
 const router = express.Router();
 
@@ -49,6 +50,8 @@ router.get('/me', authenticateToken, async (req, res) => {
         freeTrialSessionUsed: user.freeTrialSessionUsed,
         acceptsFreeTrialSessions: user.acceptsFreeTrialSessions,
         onboardingCompleted: user.onboardingCompleted,
+        emailVerifiedAt: user.emailVerifiedAt,
+        marketingPreference: user.marketingPreference,
       },
     });
   } catch (error) {
@@ -125,10 +128,66 @@ router.put('/me', authenticateToken, async (req, res) => {
         // this payload, and a missing flag reads as "onboarding not pending",
         // which would tear the wizard down mid-flow.
         onboardingCompleted: user.onboardingCompleted,
+        emailVerifiedAt: user.emailVerifiedAt,
+        marketingPreference: user.marketingPreference,
       },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Account-level marketing choice. Transactional messages (verification,
+// password reset, meetings) are deliberately unaffected.
+router.patch('/me/marketing-preference', authenticateToken, async (req, res) => {
+  try {
+    if (typeof req.body?.subscribed !== 'boolean') {
+      return res.status(400).json({ message: 'subscribed must be true or false' });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role === 'admin') return res.status(403).json({ message: 'Admin accounts cannot receive campaigns' });
+    if (req.body.subscribed && !user.emailVerifiedAt) {
+      return res.status(400).json({ message: 'Verify your email before subscribing to updates.' });
+    }
+
+    const normalizedEmail = user.email.trim().toLowerCase();
+    if (req.body.subscribed) {
+      const providerSuppression = await MarketingSuppression.exists({ normalizedEmail, active: true, reason: { $in: ['hard_bounce', 'complaint'] } });
+      if (providerSuppression) {
+        return res.status(409).json({ message: 'This address is suppressed after a delivery or complaint event. Contact support before opting in again.' });
+      }
+    }
+    const now = new Date();
+    user.marketingPreference = {
+      status: req.body.subscribed ? 'opted_in' : 'opted_out',
+      changedAt: now,
+      source: 'account_settings',
+    };
+    await user.save();
+
+    if (req.body.subscribed) {
+      // Only an explicit unsubscribe is reversible here. A complaint or hard
+      // bounce remains suppressed until an administrator/provider resolves it.
+      await MarketingSuppression.updateOne(
+        { normalizedEmail, reason: 'unsubscribe' },
+        { $set: { active: false, user: user._id, source: 'account_settings' } }
+      );
+    } else {
+      const strongSuppression = await MarketingSuppression.exists({ normalizedEmail, active: true, reason: { $in: ['hard_bounce', 'complaint'] } });
+      if (!strongSuppression) {
+        await MarketingSuppression.findOneAndUpdate(
+          { normalizedEmail },
+          { $set: { reason: 'unsubscribe', source: 'account_settings', user: user._id, active: true } },
+          { upsert: true, new: true }
+        );
+      }
+    }
+
+    res.json({ success: true, marketingPreference: user.marketingPreference });
+  } catch (error) {
+    res.status(500).json({ message: 'Could not update email preference' });
   }
 });
 

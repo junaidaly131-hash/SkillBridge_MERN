@@ -95,3 +95,11 @@ export const aiTutorSendLimiter = rateLimit({
       message: 'Too many AI Tutor requests. Please wait a few minutes and try again.',
     }),
 });
+
+export const campaignTestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  keyGenerator: (req) => req.user?.userId || ipKeyGenerator(req.ip),
+  ...common,
+  handler: (req, res) => res.status(429).json({ message: 'Too many test emails. Please wait before trying again.' }),
+});

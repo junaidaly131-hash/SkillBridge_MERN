@@ -124,6 +124,22 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    // Marketing mail is never inferred from account creation. Existing
+    // accounts intentionally remain `unknown` until the member explicitly
+    // chooses a preference.
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+    marketingPreference: {
+      status: {
+        type: String,
+        enum: ['unknown', 'opted_in', 'opted_out'],
+        default: 'unknown',
+      },
+      changedAt: { type: Date, default: null },
+      source: { type: String, default: null },
+    },
     password: {
       type: String,
       required: function() {

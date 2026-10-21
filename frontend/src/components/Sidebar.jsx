@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, CircleUserRound, CreditCard, MessageSquare, MessageCircle, LogOut, Menu, X, PanelLeftClose, LifeBuoy, Receipt, ShieldCheck, Users, ScrollText, BadgeCheck, RotateCcw, Banknote, Flag, History, AlertTriangle, Sparkles } from "lucide-react";
+import { LayoutDashboard, CircleUserRound, CreditCard, MessageSquare, MessageCircle, LogOut, Menu, X, PanelLeftClose, LifeBuoy, Receipt, ShieldCheck, Users, ScrollText, BadgeCheck, RotateCcw, Banknote, Flag, History, AlertTriangle, Sparkles, Mail } from "lucide-react";
 import { logout } from "../store/authSlice";
 import TopbarActions from "./TopbarActions";
 
@@ -22,6 +22,7 @@ const navItems = [
 const adminNavItems = [
   { name: "Revenue", path: "/admin/transactions", icon: ShieldCheck },
   { name: "User Management", path: "/admin/users", icon: Users },
+  { name: "Email Campaigns", path: "/admin/email-campaigns", icon: Mail },
   { name: "Reported Users", path: "/admin/reports", icon: Flag },
   { name: "Verifications", path: "/admin/verifications", icon: BadgeCheck },
   { name: "Refunds", path: "/admin/refunds", icon: RotateCcw },

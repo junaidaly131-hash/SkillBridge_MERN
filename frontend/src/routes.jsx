@@ -53,6 +53,8 @@ const AdminRefunds = lazy(() => import("./pages/AdminRefunds"));
 const AdminPayouts = lazy(() => import("./pages/AdminPayouts"));
 const AdminReports = lazy(() => import("./pages/AdminReports"));
 const AdminSessionDisputes = lazy(() => import("./pages/AdminSessionDisputes"));
+const AdminEmailCampaigns = lazy(() => import("./pages/AdminEmailCampaigns"));
+const UnsubscribePage = lazy(() => import("./pages/UnsubscribePage"));
 
 const router = createBrowserRouter([
   {
@@ -111,6 +113,10 @@ const router = createBrowserRouter([
     {
       path: "/contact",
       element: <ContactPage />,
+    },
+    {
+      path: "/unsubscribe/:token",
+      element: <UnsubscribePage />,
     },
     // Public and signed-out on purpose: these are the only pages that show what
     // is actually on the platform, so they are what a visitor judges it by and
@@ -204,6 +210,14 @@ const router = createBrowserRouter([
           element: (
             <AdminRoute>
               <AdminUsers />
+            </AdminRoute>
+          ),
+        },
+        {
+          path: "/admin/email-campaigns",
+          element: (
+            <AdminRoute>
+              <AdminEmailCampaigns />
             </AdminRoute>
           ),
         },
