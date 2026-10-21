@@ -9,6 +9,7 @@ import { classifyCampaignSendError } from '../services/emailCampaignService.js';
 import { isHardBounce, RESEND_EVENT_STATUS, shouldApplyProviderEvent } from '../utils/emailCampaignWebhook.js';
 import adminEmailCampaignRouter from '../routes/adminEmailCampaign.routes.js';
 import { sendMarketingEmailWithClient } from '../utils/emailService.js';
+import { assertCampaignSendConfig } from '../config/emailCampaign.js';
 
 const objectId = '507f1f77bcf86cd799439011';
 const eligibleUser = (overrides = {}) => ({
@@ -29,6 +30,19 @@ test('unverified accounts are excluded', () => assert.equal(evaluateCampaignElig
 test('unknown consent is excluded', () => assert.equal(evaluateCampaignEligibility(eligibleUser({ marketingPreference: { status: 'unknown' } }), new Set()).skipReason, 'consent_unknown'));
 test('opted-out accounts are excluded', () => assert.equal(evaluateCampaignEligibility(eligibleUser({ marketingPreference: { status: 'opted_out' } }), new Set()).skipReason, 'opted_out'));
 test('suppressed email is excluded', () => assert.equal(evaluateCampaignEligibility(eligibleUser(), new Set(['junaid@example.com'])).skipReason, 'suppressed'));
+test('legacy launch audience includes users without recorded verification or consent', () => {
+  const row = evaluateCampaignEligibility(
+    eligibleUser({ emailVerifiedAt: null, marketingPreference: { status: 'unknown' } }),
+    new Set(),
+    { allowLegacyAudience: true }
+  );
+  assert.equal(row.eligible, true);
+});
+test('legacy launch audience still respects explicit opt-out and suppression', () => {
+  const options = { allowLegacyAudience: true };
+  assert.equal(evaluateCampaignEligibility(eligibleUser({ marketingPreference: { status: 'opted_out' } }), new Set(), options).skipReason, 'opted_out');
+  assert.equal(evaluateCampaignEligibility(eligibleUser(), new Set(['junaid@example.com']), options).skipReason, 'suppressed');
+});
 test('audience deduplicates both user id and normalized email', () => {
   const rows = dedupeAudience([
     { userId: '1', normalizedEmail: 'A@example.com' },
@@ -67,6 +81,36 @@ test('429 and provider 5xx are retryable', () => {
   assert.equal(classifyCampaignSendError({ statusCode: 503 }).kind, 'retryable');
 });
 test('authentication/configuration failure stops a campaign', () => assert.equal(classifyCampaignSendError({ statusCode: 401 }).kind, 'configuration'));
+test('campaign sending does not require webhook tracking to be configured', () => {
+  const names = [
+    'EMAIL_CAMPAIGN_ENABLED', 'RESEND_API_KEY', 'RESEND_WEBHOOK_SECRET',
+    'MARKETING_UNSUBSCRIBE_SECRET', 'MARKETING_FROM', 'MARKETING_FROM_NAME',
+    'FRONTEND_URL', 'BACKEND_URL', 'EMAIL_CAMPAIGN_LEASE_MS',
+    'EMAIL_CAMPAIGN_REQUEST_TIMEOUT_MS',
+  ];
+  const original = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  try {
+    Object.assign(process.env, {
+      EMAIL_CAMPAIGN_ENABLED: 'true',
+      RESEND_API_KEY: 'test-key',
+      MARKETING_UNSUBSCRIBE_SECRET: 'test-unsubscribe-secret',
+      MARKETING_FROM: 'noreply@example.com',
+      MARKETING_FROM_NAME: 'SkillBridge',
+      FRONTEND_URL: 'https://example.com',
+      BACKEND_URL: 'https://api.example.com',
+      EMAIL_CAMPAIGN_LEASE_MS: '120000',
+      EMAIL_CAMPAIGN_REQUEST_TIMEOUT_MS: '30000',
+    });
+    delete process.env.RESEND_WEBHOOK_SECRET;
+    const config = assertCampaignSendConfig();
+    assert.equal(config.webhookConfigured, false);
+  } finally {
+    for (const name of names) {
+      if (original[name] === undefined) delete process.env[name];
+      else process.env[name] = original[name];
+    }
+  }
+});
 test('network outcome without HTTP status is ambiguous', () => assert.equal(classifyCampaignSendError({ code: 'ETIMEDOUT' }).kind, 'ambiguous'));
 test('older webhook cannot roll delivery state backwards', () => assert.equal(shouldApplyProviderEvent({ currentAt: '2026-10-21T12:00:00Z', currentRank: 30, incomingAt: '2026-10-21T11:59:00Z', incomingRank: 60 }), false));
 test('higher-ranked same-time webhook wins deterministically', () => assert.equal(shouldApplyProviderEvent({ currentAt: '2026-10-21T12:00:00Z', currentRank: 30, incomingAt: '2026-10-21T12:00:00Z', incomingRank: 50 }), true));

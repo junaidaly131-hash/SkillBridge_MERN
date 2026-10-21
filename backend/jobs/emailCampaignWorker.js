@@ -51,7 +51,11 @@ export async function processCampaignDelivery(delivery) {
   ]);
   if (!campaign?.frozenContent) throw Object.assign(new Error('Campaign snapshot is missing'), { code: 'CAMPAIGN_CONFIG_MISSING' });
 
-  const eligibility = evaluateCampaignEligibility(user, new Set(suppression ? [delivery.normalizedEmail] : []));
+  const eligibility = evaluateCampaignEligibility(
+    user,
+    new Set(suppression ? [delivery.normalizedEmail] : []),
+    { allowLegacyAudience: config.legacyAudienceEnabled }
+  );
   if (!eligibility.eligible || eligibility.normalizedEmail !== delivery.normalizedEmail) {
     delivery.status = 'skipped';
     delivery.active = false;
