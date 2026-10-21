@@ -62,6 +62,7 @@ Set these on the backend only; never expose secrets through a `VITE_` variable:
 
 ```env
 EMAIL_CAMPAIGN_ENABLED=true
+EMAIL_CAMPAIGN_LEGACY_AUDIENCE=false
 RESEND_API_KEY=...
 RESEND_WEBHOOK_SECRET=...
 MARKETING_FROM=noreply@your-verified-domain.example
@@ -78,6 +79,8 @@ EMAIL_CAMPAIGN_RETRY_BASE_MS=30000
 ```
 
 Keep `EMAIL_CAMPAIGN_ENABLED=false` until the sending domain and From address are verified, public frontend/backend URLs work, and the Resend webhook points to `/api/webhooks/resend` with these event types enabled: sent, delivered, delivery delayed, failed, bounced and complained.
+
+For a controlled launch announcement to accounts created before verification and marketing-preference tracking existed, `EMAIL_CAMPAIGN_LEGACY_AUDIENCE=true` includes users whose verification or consent is unrecorded. It never includes admins, suspended accounts, invalid addresses, explicit opt-outs, complaints, hard bounces or other active suppressions. Return it to `false` after the launch campaign so later campaigns require explicit opt-in again.
 
 The webhook endpoint must not be placed behind middleware that parses JSON before signature verification. Run only one worker initially and increase concurrency only after checking the account-specific Resend rate limit and real error/latency metrics.
 
