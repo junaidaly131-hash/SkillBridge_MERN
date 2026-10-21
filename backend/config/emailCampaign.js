@@ -25,6 +25,7 @@ export function getEmailCampaignConfig() {
   const backendUrl = (process.env.BACKEND_URL || '').replace(/\/$/, '');
   return {
     enabled: process.env.EMAIL_CAMPAIGN_ENABLED === 'true',
+    legacyAudienceEnabled: process.env.EMAIL_CAMPAIGN_LEGACY_AUDIENCE === 'true',
     resendConfigured: Boolean(process.env.RESEND_API_KEY?.trim()),
     webhookConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET?.trim()),
     unsubscribeConfigured: Boolean(process.env.MARKETING_UNSUBSCRIBE_SECRET?.trim()),
@@ -69,6 +70,7 @@ export function assertCampaignSendConfig() {
 export function describeEmailCampaignConfig() {
   const config = getEmailCampaignConfig();
   console.log('Email campaigns:', config.enabled ? 'enabled' : 'disabled');
+  console.log('Email campaign legacy audience:', config.legacyAudienceEnabled ? 'enabled' : 'disabled');
   console.log('Email campaign Resend key:', config.resendConfigured ? 'set' : 'missing');
   console.log('Email campaign webhook secret:', config.webhookConfigured ? 'set' : 'missing');
   console.log('Marketing unsubscribe secret:', config.unsubscribeConfigured ? 'set' : 'missing');
