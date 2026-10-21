@@ -52,7 +52,13 @@ function ExternalContactsPanel({ selectedIds = [], onSelectionChange }) {
     setBusy(true);
     try {
       const body = new FormData(); body.append('file', file);
-      const { data } = await apiClient.post('/admin/email-campaigns/external-contacts/imports/preview', body);
+      // apiClient defaults to application/json. Override it here so Axios keeps
+      // the FormData payload intact and the browser adds the multipart boundary.
+      const { data } = await apiClient.post(
+        '/admin/email-campaigns/external-contacts/imports/preview',
+        body,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
       setPreview(data.import); setMapping(data.import.mapping || {}); await loadRows(data.import.id); await loadImports();
       showSuccess('CSV preview created. No contacts were changed.');
     } catch (error) { showError(error.response?.data?.message || "Couldn't preview this CSV."); }
