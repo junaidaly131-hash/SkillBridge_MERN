@@ -11,7 +11,14 @@ const contentSchema = new mongoose.Schema({
 }, { _id: false });
 
 const audienceSnapshotSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  externalContactId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalMarketingContact', default: null },
+  sourceKind: { type: String, enum: ['user', 'external'], required: true },
+  provenance: [{
+    kind: { type: String, enum: ['user', 'external'], required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    externalContactId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalMarketingContact', default: null },
+  }],
   normalizedEmail: { type: String, required: true },
   recipientName: { type: String, default: '' },
   isStudent: { type: Boolean, default: false },
@@ -43,6 +50,8 @@ const emailCampaignSchema = new mongoose.Schema({
   },
   content: { type: contentSchema, required: true },
   selectedUserIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  selectedExternalContactIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ExternalMarketingContact' }],
+  audienceSource: { type: String, enum: ['users', 'external', 'both'], default: 'users' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   frozenContent: { type: contentSchema, default: null },

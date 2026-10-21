@@ -2,7 +2,14 @@ import mongoose from 'mongoose';
 
 const emailCampaignDeliverySchema = new mongoose.Schema({
   campaign: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailCampaign', required: true, index: true },
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  externalContact: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalMarketingContact', default: null },
+  recipientKind: { type: String, enum: ['user', 'external'], default: 'user' },
+  provenance: [{
+    kind: { type: String, enum: ['user', 'external'], required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    externalContactId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalMarketingContact', default: null },
+  }],
   normalizedEmail: { type: String, required: true },
   recipientName: { type: String, default: '' },
   isStudent: { type: Boolean, default: false },
@@ -32,7 +39,14 @@ const emailCampaignDeliverySchema = new mongoose.Schema({
   skippedReason: { type: String, default: null },
 }, { timestamps: true });
 
-emailCampaignDeliverySchema.index({ campaign: 1, user: 1 }, { unique: true });
+emailCampaignDeliverySchema.index(
+  { campaign: 1, user: 1 },
+  { unique: true, partialFilterExpression: { user: { $type: 'objectId' } } }
+);
+emailCampaignDeliverySchema.index(
+  { campaign: 1, externalContact: 1 },
+  { unique: true, partialFilterExpression: { externalContact: { $type: 'objectId' } } }
+);
 emailCampaignDeliverySchema.index({ campaign: 1, normalizedEmail: 1 }, { unique: true });
 emailCampaignDeliverySchema.index({ active: 1, status: 1, nextAttemptAt: 1, leaseUntil: 1 });
 

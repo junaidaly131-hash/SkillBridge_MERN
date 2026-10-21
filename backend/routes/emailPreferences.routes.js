@@ -2,6 +2,7 @@ import express from 'express';
 import EmailCampaignDelivery from '../models/EmailCampaignDelivery.js';
 import MarketingSuppression from '../models/MarketingSuppression.js';
 import User from '../models/User.js';
+import ExternalMarketingContact from '../models/ExternalMarketingContact.js';
 import { hashUnsubscribeToken, safeTokenMatch } from '../utils/marketingUnsubscribe.js';
 
 const router = express.Router();
@@ -27,15 +28,19 @@ router.post('/unsubscribe/:token', route(async (req, res) => {
   const now = new Date();
   const strongSuppression = await MarketingSuppression.exists({ normalizedEmail: delivery.normalizedEmail, active: true, reason: { $in: ['hard_bounce', 'complaint'] } });
   const operations = [
-    User.updateOne(
-      { _id: delivery.user },
+    User.updateMany(
+      { email: delivery.normalizedEmail },
       { $set: { marketingPreference: { status: 'opted_out', changedAt: now, source: 'unsubscribe_link' } } }
+    ),
+    ExternalMarketingContact.updateMany(
+      { normalizedEmail: delivery.normalizedEmail },
+      { $set: { permission: { status: 'unsubscribed', source: '', at: null, reference: '' } } }
     ),
   ];
   if (!strongSuppression) {
     operations.push(MarketingSuppression.findOneAndUpdate(
       { normalizedEmail: delivery.normalizedEmail },
-      { $set: { reason: 'unsubscribe', source: 'campaign_link', user: delivery.user, active: true } },
+      { $set: { reason: 'unsubscribe', source: 'campaign_link', user: delivery.user || null, active: true } },
       { upsert: true }
     ));
   }

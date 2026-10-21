@@ -4,9 +4,10 @@ import EmailCampaign from '../models/EmailCampaign.js';
 import EmailCampaignDelivery from '../models/EmailCampaignDelivery.js';
 import MarketingSuppression from '../models/MarketingSuppression.js';
 import User from '../models/User.js';
+import ExternalMarketingContact from '../models/ExternalMarketingContact.js';
 import { getEmailCampaignConfig, assertCampaignSendConfig } from '../config/emailCampaign.js';
 import { sendMarketingEmail } from '../utils/emailService.js';
-import { evaluateCampaignEligibility } from '../utils/emailCampaignEligibility.js';
+import { evaluateCampaignEligibility, evaluateExternalContactEligibility, mergeAudienceByEmail } from '../utils/emailCampaignEligibility.js';
 import { makeUnsubscribeToken } from '../utils/marketingUnsubscribe.js';
 import { renderCampaignEmail } from '../utils/emailCampaignTemplate.js';
 import { classifyCampaignSendError, refreshCampaignCounts } from '../services/emailCampaignService.js';
@@ -44,18 +45,33 @@ async function stopCampaignForConfiguration(delivery, message) {
 
 export async function processCampaignDelivery(delivery) {
   const config = assertCampaignSendConfig();
-  const [campaign, user, suppression] = await Promise.all([
+  const [campaign, users, contacts, suppression] = await Promise.all([
     EmailCampaign.findById(delivery.campaign).lean(),
-    User.findById(delivery.user).select('name email role isSuspended emailVerifiedAt marketingPreference skillsLearning skillsTeaching').lean(),
+    User.find({ email: delivery.normalizedEmail }).select('name email role isSuspended emailVerifiedAt marketingPreference skillsLearning skillsTeaching').lean(),
+    ExternalMarketingContact.find({ normalizedEmail: delivery.normalizedEmail }).lean(),
     MarketingSuppression.findOne({ normalizedEmail: delivery.normalizedEmail, active: true }).lean(),
   ]);
   if (!campaign?.frozenContent) throw Object.assign(new Error('Campaign snapshot is missing'), { code: 'CAMPAIGN_CONFIG_MISSING' });
 
-  const eligibility = evaluateCampaignEligibility(
-    user,
-    new Set(suppression ? [delivery.normalizedEmail] : []),
-    { allowLegacyAudience: config.legacyAudienceEnabled }
-  );
+  const suppressed = new Set(suppression ? [delivery.normalizedEmail] : []);
+  const optedOutUsers = new Set(users.filter((user) => user.marketingPreference?.status === 'opted_out').map((user) => String(user.email).toLowerCase()));
+  const intendedUserIds = new Set((delivery.provenance || []).filter((item) => item.kind === 'user').map((item) => String(item.userId)));
+  const intendedExternalIds = new Set((delivery.provenance || []).filter((item) => item.kind === 'external').map((item) => String(item.externalContactId)));
+  if (!intendedUserIds.size && delivery.user) intendedUserIds.add(String(delivery.user));
+  if (!intendedExternalIds.size && delivery.externalContact) intendedExternalIds.add(String(delivery.externalContact));
+  const preserveRestriction = (row, intended) => intended || ['opted_out', 'suppressed', 'unsubscribed', 'registered_user_opted_out'].includes(row.skipReason)
+    ? row
+    : { ...row, eligible: false, skipReason: 'not_selected_source' };
+  const eligibility = mergeAudienceByEmail([
+    ...users.map((user) => preserveRestriction(
+      evaluateCampaignEligibility(user, suppressed, { allowLegacyAudience: config.legacyAudienceEnabled }),
+      intendedUserIds.has(String(user._id))
+    )),
+    ...contacts.map((contact) => preserveRestriction(
+      evaluateExternalContactEligibility(contact, suppressed, optedOutUsers),
+      intendedExternalIds.has(String(contact._id))
+    )),
+  ])[0] || { eligible: false, skipReason: 'recipient_deleted', normalizedEmail: delivery.normalizedEmail };
   if (!eligibility.eligible || eligibility.normalizedEmail !== delivery.normalizedEmail) {
     delivery.status = 'skipped';
     delivery.active = false;
@@ -70,7 +86,7 @@ export async function processCampaignDelivery(delivery) {
   const token = makeUnsubscribeToken(delivery._id);
   const oneClickUrl = `${config.backendUrl}/api/email-preferences/unsubscribe/${token}`;
   const preferenceUrl = `${config.frontendUrl}/unsubscribe/${token}`;
-  const rendered = renderCampaignEmail({ content: campaign.frozenContent, recipientName: user.name, unsubscribeUrl: preferenceUrl });
+  const rendered = renderCampaignEmail({ content: campaign.frozenContent, recipientName: eligibility.recipientName || delivery.recipientName, unsubscribeUrl: preferenceUrl });
   let timeoutId;
   const sendPromise = sendMarketingEmail({
     from: campaign.senderIdentity,

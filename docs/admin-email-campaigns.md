@@ -2,7 +2,7 @@
 
 ## Scope
 
-This module is a deliberately small, manual marketing-campaign workflow for authenticated SkillBridge administrators. It reuses the existing Resend integration but keeps campaign delivery separate from transactional email. It does not import contacts, schedule recurring newsletters, infer consent, or send automatically when a campaign is created.
+This module is a manual marketing-campaign workflow for authenticated SkillBridge administrators. It reuses the existing Resend integration but keeps campaign delivery separate from transactional email. It supports reviewed external-contact CSV imports; it does not scrape contacts, schedule recurring newsletters, infer consent, create member accounts, or send automatically when a campaign/contact is created.
 
 The first built-in template announces SkillBridge AI Tutor. Administrators can edit its subject, preheader, heading, message, CTA label/URL and closing, select eligible recipients, inspect the exact HTML/plain rendering, send a test to their own verified admin email, review, explicitly confirm, and enqueue.
 
@@ -38,6 +38,25 @@ Admin accounts, suspended accounts, invalid/unverified addresses, unknown consen
 - `MarketingSuppression`: normalized email suppression for unsubscribe, hard bounce or complaint.
 - `EmailWebhookEvent`: deduplicated safe event metadata. A TTL index removes records after 365 days.
 - `User.emailVerifiedAt` and `User.marketingPreference`: verification and explicit consent evidence.
+- `ExternalMarketingContact`: admin-only external contact metadata, normalized unique email, tags, permission evidence and import provenance.
+- `ExternalContactImport`: 24-hour bounded preview rows, mapping/counts and persistent non-sensitive import result history. Original row data is removed after confirmation.
+- `ExternalContactImportLock`: one database lease serializes confirmations so concurrent imports cannot bypass the stored-contact ceiling.
+
+## External contacts and CSV imports
+
+CSV upload is preview-only. The server accepts strict UTF-8 (optional BOM), quoted commas/newlines and CRLF/LF, with a default ceiling of 2 MiB and 2,000 rows. The admin maps headers, reviews paginated rows and explicitly confirms. Existing normalized emails and duplicate rows are skipped, never overwritten. Unique indexes provide the final concurrency guard.
+
+Permission defaults to `unknown`. `documented` requires a permission source, a valid non-future timestamp and evidence/reference; a boolean `true` alone remains unknown. Unknown contacts can be stored and reviewed but cannot be selected. External unsubscribe, a matching registered-user opt-out, complaint, hard bounce or active suppression always wins. Source/reference values are admin-only metadata and are never fetched or logged.
+
+Abandoned preview documents expire after 24 hours through a TTL index. Confirmed imports retain counts, timestamps and a bounded error summary for audit, while raw preview rows and mapping are removed. Deleting a contact does not delete `MarketingSuppression`; campaign delivery snapshots remain as the minimum audit/idempotency record under the existing campaign retention policy.
+
+Before deploying this schema change against a database that already has campaign deliveries, run:
+
+```bash
+node backend/scripts/migrateExternalCampaignDeliveryIndexes.js
+```
+
+This replaces the legacy non-partial campaign/user unique index and creates source-aware partial indexes. Rollback is to disable campaign sending, deploy the previous application revision, and keep the new contact/import collections dormant; do not delete suppression data.
 
 ## HTTP endpoints
 
@@ -55,6 +74,15 @@ All `/api/admin/email-campaigns` endpoints require both `authenticateToken` and 
 - `GET|POST /api/email-preferences/unsubscribe/:token`
 - `POST /api/webhooks/resend` (raw, signed provider request)
 - `PATCH /api/users/me/marketing-preference`
+- `GET /api/admin/email-campaigns/external-contacts/sample.csv`
+- `POST /api/admin/email-campaigns/external-contacts/imports/preview`
+- `POST /api/admin/email-campaigns/external-contacts/imports/:id/remap`
+- `GET /api/admin/email-campaigns/external-contacts/imports/:id/rows`
+- `GET /api/admin/email-campaigns/external-contacts/imports/:id/errors.csv`
+- `POST /api/admin/email-campaigns/external-contacts/imports/:id/confirm`
+- `GET /api/admin/email-campaigns/external-contacts/imports`
+- `GET|PATCH|DELETE /api/admin/email-campaigns/external-contacts/:id`
+- `POST /api/admin/email-campaigns/external-contacts/resolve-audience`
 
 ## Production configuration
 
@@ -76,6 +104,10 @@ EMAIL_CAMPAIGN_MAX_ATTEMPTS=3
 EMAIL_CAMPAIGN_LEASE_MS=120000
 EMAIL_CAMPAIGN_REQUEST_TIMEOUT_MS=30000
 EMAIL_CAMPAIGN_RETRY_BASE_MS=30000
+EMAIL_CAMPAIGN_CONTACT_IMPORT_MAX_BYTES=2097152
+EMAIL_CAMPAIGN_CONTACT_IMPORT_MAX_ROWS=2000
+EMAIL_CAMPAIGN_CONTACT_MAX_STORED=10000
+EMAIL_CAMPAIGN_MAX_AUDIENCE=10000
 ```
 
 Keep `EMAIL_CAMPAIGN_ENABLED=false` until the sending domain and From address are verified, public frontend/backend URLs work, and the Resend webhook points to `/api/webhooks/resend` with these event types enabled: sent, delivered, delivery delayed, failed, bounced and complained.
@@ -86,7 +118,7 @@ The webhook endpoint must not be placed behind middleware that parses JSON befor
 
 ## Verification and limitations
 
-Automated coverage includes eligibility and overlap dedupe, unknown consent, suppression, header injection, template-token and CTA validation, HTML escaping, opaque unsubscribe integrity, retry classification, ambiguous outcomes, webhook ordering/bounce rules, delivery uniqueness and campaign preparation state. A mocked Resend contract test verifies idempotency, tags and one-click headers without network access; no real campaign is sent during development.
+Automated coverage includes eligibility and cross-source dedupe, unknown consent, suppression, CSV BOM/quoting/newlines/Urdu, mapping/date/row limits, formula-safe exports, external-contact indexes, template escaping/fallback, opaque unsubscribe integrity, retry classification, ambiguous outcomes, webhook ordering/bounce rules, delivery uniqueness and campaign preparation state. A mocked Resend contract test verifies idempotency, tags and one-click headers without network access; no real campaign is sent during development.
 
 Before enabling production sends, perform a limited beta: preview desktop/mobile/plain output, send only a test to the verified admin, validate unsubscribe GET/POST and one-click behavior, replay duplicate/out-of-order signed webhook fixtures, and observe queue latency, errors, unknown outcomes, complaints, bounces and quota/rate-limit behavior.
 

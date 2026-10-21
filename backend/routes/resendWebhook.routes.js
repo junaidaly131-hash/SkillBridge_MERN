@@ -3,6 +3,7 @@ import EmailWebhookEvent from '../models/EmailWebhookEvent.js';
 import EmailCampaignDelivery from '../models/EmailCampaignDelivery.js';
 import MarketingSuppression from '../models/MarketingSuppression.js';
 import User from '../models/User.js';
+import ExternalMarketingContact from '../models/ExternalMarketingContact.js';
 import { verifyResendWebhook } from '../utils/emailService.js';
 import { refreshCampaignCounts } from '../services/emailCampaignService.js';
 import { isHardBounce, RESEND_EVENT_STATUS, shouldApplyProviderEvent } from '../utils/emailCampaignWebhook.js';
@@ -70,9 +71,13 @@ router.post('/', express.raw({ type: '*/*', limit: '1mb' }), route(async (req, r
           { $set: { reason, source: 'resend_webhook', user: delivery.user, active: true, providerMessageId } },
           { upsert: true }
         ),
-        User.updateOne(
-          { _id: delivery.user },
+        User.updateMany(
+          { email: delivery.normalizedEmail },
           { $set: { marketingPreference: { status: 'opted_out', changedAt: eventCreatedAt, source: `provider_${reason}` } } }
+        ),
+        ExternalMarketingContact.updateMany(
+          { normalizedEmail: delivery.normalizedEmail },
+          { $set: { permission: { status: 'unsubscribed', source: '', at: null, reference: '' } } }
         ),
       ]);
     }

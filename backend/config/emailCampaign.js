@@ -41,6 +41,10 @@ export function getEmailCampaignConfig() {
     leaseMs: positiveInt('EMAIL_CAMPAIGN_LEASE_MS', 120000, { min: 30000, max: 600000 }),
     requestTimeoutMs: positiveInt('EMAIL_CAMPAIGN_REQUEST_TIMEOUT_MS', 30000, { min: 5000, max: 120000 }),
     retryBaseMs: positiveInt('EMAIL_CAMPAIGN_RETRY_BASE_MS', 30000, { min: 1000, max: 3600000 }),
+    externalContactMaxFileBytes: positiveInt('EMAIL_CAMPAIGN_CONTACT_IMPORT_MAX_BYTES', 2097152, { min: 1024, max: 5242880 }),
+    externalContactMaxRows: positiveInt('EMAIL_CAMPAIGN_CONTACT_IMPORT_MAX_ROWS', 2000, { min: 1, max: 5000 }),
+    externalContactMaxStored: positiveInt('EMAIL_CAMPAIGN_CONTACT_MAX_STORED', 10000, { min: 1, max: 50000 }),
+    maxAudience: positiveInt('EMAIL_CAMPAIGN_MAX_AUDIENCE', 10000, { min: 1, max: 50000 }),
   };
 }
 

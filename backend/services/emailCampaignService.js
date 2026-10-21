@@ -3,25 +3,52 @@ import User from '../models/User.js';
 import EmailCampaign from '../models/EmailCampaign.js';
 import EmailCampaignDelivery from '../models/EmailCampaignDelivery.js';
 import MarketingSuppression from '../models/MarketingSuppression.js';
+import ExternalMarketingContact from '../models/ExternalMarketingContact.js';
 import { assertCampaignSendConfig, getEmailCampaignConfig } from '../config/emailCampaign.js';
-import { dedupeAudience, evaluateCampaignEligibility } from '../utils/emailCampaignEligibility.js';
+import {
+  dedupeAudience,
+  evaluateCampaignEligibility,
+  evaluateExternalContactEligibility,
+  mergeAudienceByEmail,
+  normalizeEmail,
+} from '../utils/emailCampaignEligibility.js';
 import { hashUnsubscribeToken, makeUnsubscribeToken } from '../utils/marketingUnsubscribe.js';
 import { validateCampaignContent } from '../utils/emailCampaignTemplate.js';
 
-export async function buildCampaignAudience({ selectedUserIds } = {}) {
+export async function buildCampaignAudience({ selectedUserIds, selectedExternalContactIds, source = 'users' } = {}) {
   const { legacyAudienceEnabled } = getEmailCampaignConfig();
-  const filter = { role: { $ne: 'admin' } };
-  if (selectedUserIds?.length) filter._id = { $in: selectedUserIds };
-  const [users, suppressions] = await Promise.all([
-    User.find(filter).select('name email role isSuspended emailVerifiedAt marketingPreference skillsLearning skillsTeaching').lean(),
+  const includeUsers = ['users', 'both'].includes(source);
+  const includeExternal = ['external', 'both'].includes(source);
+  const userFilter = { role: { $ne: 'admin' } };
+  const externalFilter = {};
+  if (selectedUserIds) userFilter._id = { $in: selectedUserIds };
+  if (selectedExternalContactIds) externalFilter._id = { $in: selectedExternalContactIds };
+  const [users, contacts, suppressions] = await Promise.all([
+    includeUsers ? User.find(userFilter).select('name email role isSuspended emailVerifiedAt marketingPreference skillsLearning skillsTeaching').lean() : [],
+    includeExternal ? ExternalMarketingContact.find(externalFilter).lean() : [],
     MarketingSuppression.find({ active: true }).select('normalizedEmail').lean(),
   ]);
   const suppressed = new Set(suppressions.map((item) => item.normalizedEmail));
-  return dedupeAudience(users.map((user) => evaluateCampaignEligibility(
+  let userRows = dedupeAudience(users.map((user) => evaluateCampaignEligibility(
     user,
     suppressed,
     { allowLegacyAudience: legacyAudienceEnabled }
   )));
+  const candidateEmails = [...new Set([
+    ...userRows.map((row) => row.normalizedEmail),
+    ...contacts.map((contact) => normalizeEmail(contact.normalizedEmail)),
+  ].filter(Boolean))];
+  const [optedOutUsers, unsubscribedContacts] = candidateEmails.length ? await Promise.all([
+    User.find({ email: { $in: candidateEmails }, 'marketingPreference.status': 'opted_out' }).select('email').lean(),
+    ExternalMarketingContact.find({ normalizedEmail: { $in: candidateEmails }, 'permission.status': 'unsubscribed' }).select('normalizedEmail').lean(),
+  ]) : [[], []];
+  const restrictedUsers = new Set(optedOutUsers.map((user) => normalizeEmail(user.email)));
+  const restrictedExternal = new Set(unsubscribedContacts.map((contact) => normalizeEmail(contact.normalizedEmail)));
+  userRows = userRows.map((row) => restrictedExternal.has(row.normalizedEmail)
+    ? { ...row, eligible: false, skipReason: 'unsubscribed' }
+    : row);
+  const externalRows = contacts.map((contact) => evaluateExternalContactEligibility(contact, suppressed, restrictedUsers));
+  return mergeAudienceByEmail([...userRows, ...externalRows]);
 }
 
 export async function queueCampaign(campaignId, adminId) {
@@ -30,11 +57,14 @@ export async function queueCampaign(campaignId, adminId) {
   if (!campaign) throw Object.assign(new Error('Only a draft campaign can be queued'), { statusCode: 409 });
   const validated = validateCampaignContent(campaign.content);
   if (!validated.valid) throw Object.assign(new Error(validated.errors.join('. ')), { statusCode: 400 });
-  if (!campaign.selectedUserIds.length) throw Object.assign(new Error('Select at least one recipient'), { statusCode: 400 });
+  if (!campaign.selectedUserIds.length && !campaign.selectedExternalContactIds.length) throw Object.assign(new Error('Select at least one recipient'), { statusCode: 400 });
 
-  const audience = await buildCampaignAudience({ selectedUserIds: campaign.selectedUserIds });
-  const selected = new Set(campaign.selectedUserIds.map(String));
-  const frozenAudience = audience.filter((row) => selected.has(String(row.userId)));
+  const frozenAudience = await buildCampaignAudience({
+    selectedUserIds: campaign.selectedUserIds,
+    selectedExternalContactIds: campaign.selectedExternalContactIds,
+    source: campaign.audienceSource,
+  });
+  if (frozenAudience.length > config.maxAudience) throw Object.assign(new Error(`Campaign audience exceeds the ${config.maxAudience} recipient limit`), { statusCode: 409 });
   if (!frozenAudience.length) throw Object.assign(new Error('No selected users were found'), { statusCode: 400 });
   if (!frozenAudience.some((row) => row.eligible)) {
     throw Object.assign(new Error('None of the selected users are currently eligible'), { statusCode: 400 });
@@ -55,13 +85,17 @@ export async function queueCampaign(campaignId, adminId) {
     await claimed.save();
 
     const operations = frozenAudience.map((row) => {
-      const deliveryId = crypto.createHash('sha256').update(`${claimed._id}:${row.userId}`).digest('hex').slice(0, 24);
+      const deliveryId = crypto.createHash('sha256').update(`${claimed._id}:${row.normalizedEmail}`).digest('hex').slice(0, 24);
       const token = makeUnsubscribeToken(deliveryId);
       return {
         updateOne: {
-          filter: { campaign: claimed._id, user: row.userId },
+          filter: { campaign: claimed._id, normalizedEmail: row.normalizedEmail },
           update: { $setOnInsert: {
-            _id: deliveryId, campaign: claimed._id, user: row.userId,
+            _id: deliveryId, campaign: claimed._id,
+            user: row.userId || null,
+            externalContact: row.externalContactId || null,
+            recipientKind: row.sourceKind,
+            provenance: row.provenance || [],
             normalizedEmail: row.normalizedEmail, recipientName: row.recipientName,
             isStudent: row.isStudent, isTeacher: row.isTeacher,
             status: row.eligible ? 'queued' : 'skipped', active: row.eligible,

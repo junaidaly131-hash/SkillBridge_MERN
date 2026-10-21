@@ -1,11 +1,6 @@
 const LIMITS = {
-  subject: 150,
-  preheader: 180,
-  heading: 120,
-  message: 4000,
-  ctaLabel: 60,
-  ctaUrl: 500,
-  closing: 500,
+  subject: 150, preheader: 180, heading: 120, message: 4000,
+  ctaLabel: 60, ctaUrl: 500, closing: 500,
 };
 
 export const AI_TUTOR_CAMPAIGN_TEMPLATE = Object.freeze({
@@ -18,13 +13,18 @@ export const AI_TUTOR_CAMPAIGN_TEMPLATE = Object.freeze({
   closing: 'Keep learning,\nThe SkillBridge team',
 });
 
+export const INTRODUCE_SKILLBRIDGE_TEMPLATE = Object.freeze({
+  subject: 'Learn a skill. Share what you know.',
+  preheader: 'Meet SkillBridge: skill exchange, online sessions, and AI study tools.',
+  heading: 'A new way to learn and share your skills',
+  message: "Hi {{firstName}},\n\nI’m Junaid, the developer behind SkillBridge, a platform where people can learn skills from others and share what they know.\n\nYou can explore teachers, connect through chat, and arrange online learning sessions.\n\nWe’ve also added AI Tutor. It lets you ask learning questions, work with your PDF or TXT notes, and create summaries, practice quizzes, and flashcards.\n\nIf you’re learning something new or interested in teaching a skill, I’d love for you to explore it.",
+  ctaLabel: 'Explore SkillBridge',
+  ctaUrl: 'https://www.skill-bridge.me/',
+  closing: 'Junaid\nSkillBridge',
+});
+
 export function escapeHtml(value = '') {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
 
 function interpolate(value, firstName) {
@@ -40,27 +40,15 @@ export function validateCampaignContent(content, { allowedOrigins } = {}) {
     if (value.length > max) errors.push(`${field} must be ${max} characters or fewer`);
     clean[field] = value;
   }
-  if (/\r|\n/.test(clean.subject) || /\r|\n/.test(clean.preheader)) {
-    errors.push('Subject and preheader cannot contain line breaks');
-  }
+  if (/\r|\n/.test(clean.subject) || /\r|\n/.test(clean.preheader)) errors.push('Subject and preheader cannot contain line breaks');
   const tokens = Object.values(clean).flatMap((value) => value.match(/{{[^}]+}}/g) || []);
   if (tokens.some((token) => token !== '{{firstName}}')) errors.push('Only {{firstName}} is supported');
-
   try {
     const url = new URL(clean.ctaUrl);
-    const configured = String(process.env.MARKETING_ALLOWED_CTA_ORIGINS || '')
-      .split(',').map((value) => value.trim()).filter(Boolean);
-    const origins = allowedOrigins || [
-      'https://skill-bridge.me',
-      'https://www.skill-bridge.me',
-      ...configured,
-    ];
-    if (url.protocol !== 'https:' || !origins.includes(url.origin)) {
-      errors.push('CTA must use HTTPS on an approved SkillBridge origin');
-    }
-  } catch {
-    errors.push('CTA URL is invalid');
-  }
+    const configured = String(process.env.MARKETING_ALLOWED_CTA_ORIGINS || '').split(',').map((value) => value.trim()).filter(Boolean);
+    const origins = allowedOrigins || ['https://skill-bridge.me', 'https://www.skill-bridge.me', ...configured];
+    if (url.protocol !== 'https:' || !origins.includes(url.origin)) errors.push('CTA must use HTTPS on an approved SkillBridge origin');
+  } catch { errors.push('CTA URL is invalid'); }
   return { valid: errors.length === 0, errors, content: clean };
 }
 
@@ -70,12 +58,9 @@ function lineBreaks(value) {
 
 export function renderCampaignEmail({ content, recipientName, unsubscribeUrl, preview = false }) {
   const firstName = String(recipientName || '').trim().split(/\s+/)[0] || 'there';
-  const fields = Object.fromEntries(
-    Object.entries(content).map(([key, value]) => [key, interpolate(value, firstName)])
-  );
+  const fields = Object.fromEntries(Object.entries(content).map(([key, value]) => [key, interpolate(value, firstName)]));
   const safeUnsubscribe = escapeHtml(unsubscribeUrl || '#');
-  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(fields.subject)}</title></head><body style="margin:0;background:#f6f8fa;font-family:Arial,sans-serif;color:#152447"><div style="display:none;max-height:0;overflow:hidden">${escapeHtml(fields.preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f8fa;padding:24px 12px"><tr><td align="center"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#fff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden"><tr><td style="padding:24px 32px;border-top:5px solid #249f91"><div style="font-size:21px;font-weight:800;letter-spacing:.3px">SKILLBRIDGE</div></td></tr><tr><td style="padding:16px 32px 32px"><h1 style="font-size:28px;line-height:1.25;margin:0 0 18px">${escapeHtml(fields.heading)}</h1><div style="font-size:16px;line-height:1.7;color:#374151">${lineBreaks(fields.message)}</div><p style="margin:28px 0"><a href="${escapeHtml(fields.ctaUrl)}" style="display:inline-block;background:#1d2c50;color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:10px">${escapeHtml(fields.ctaLabel)}</a></p><div style="font-size:15px;line-height:1.6;color:#374151">${lineBreaks(fields.closing)}</div></td></tr><tr><td style="padding:20px 32px;background:#f3f7f7;color:#6b7280;font-size:12px;line-height:1.6">You received this because you opted in to SkillBridge product updates.<br>SkillBridge · <a href="mailto:support@skill-bridge.me" style="color:#168f83">support@skill-bridge.me</a>${preview ? '' : `<br><a href="${safeUnsubscribe}" style="color:#168f83">Unsubscribe from marketing emails</a>`}</td></tr></table></td></tr></table></body></html>`;
-  const text = `${fields.preheader}\n\n${fields.heading}\n\n${fields.message}\n\n${fields.ctaLabel}: ${fields.ctaUrl}\n\n${fields.closing}\n\nSkillBridge | support@skill-bridge.me${preview ? '' : `\nUnsubscribe: ${unsubscribeUrl}`}`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(fields.subject)}</title></head><body style="margin:0;background:#ffffff;font-family:Arial,sans-serif;color:#17213d"><div style="display:none;max-height:0;overflow:hidden">${escapeHtml(fields.preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ffffff"><tr><td align="center" style="padding:28px 18px"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#ffffff"><tr><td style="padding:0 0 28px"><div style="font-size:18px;font-weight:800;letter-spacing:.35px;color:#17213d">SKILLBRIDGE</div></td></tr><tr><td><h1 style="font-size:27px;line-height:1.3;margin:0 0 22px;color:#111827">${escapeHtml(fields.heading)}</h1><div style="font-size:16px;line-height:1.75;color:#374151">${lineBreaks(fields.message)}</div><p style="margin:30px 0"><a href="${escapeHtml(fields.ctaUrl)}" style="display:inline-block;background:#238b80;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:8px">${escapeHtml(fields.ctaLabel)}</a></p><div style="font-size:15px;line-height:1.7;color:#374151">${lineBreaks(fields.closing)}</div></td></tr><tr><td style="padding:28px 0 0;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px;line-height:1.7">This is a SkillBridge product update and introduction.<br>SkillBridge · <a href="mailto:support@skill-bridge.me" style="color:#238b80">support@skill-bridge.me</a>${preview ? '' : `<br><a href="${safeUnsubscribe}" style="color:#238b80">Unsubscribe from marketing emails</a>`}</td></tr></table></td></tr></table></body></html>`;
+  const text = `${fields.preheader}\n\n${fields.heading}\n\n${fields.message}\n\n${fields.ctaLabel}: ${fields.ctaUrl}\n\n${fields.closing}\n\nThis is a SkillBridge product update and introduction.\nSkillBridge | support@skill-bridge.me${preview ? '' : `\nUnsubscribe: ${unsubscribeUrl}`}`;
   return { subject: fields.subject, html, text };
 }
-
