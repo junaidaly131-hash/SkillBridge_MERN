@@ -4,17 +4,18 @@ export function looksLikeEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(email));
 }
 
-export function evaluateCampaignEligibility(user, suppressedEmails = new Set()) {
+export function evaluateCampaignEligibility(user, suppressedEmails = new Set(), { allowLegacyAudience = false } = {}) {
   const normalizedEmail = normalizeEmail(user?.email);
+  const preference = user?.marketingPreference?.status;
   let reason = null;
   if (!user) reason = 'missing_user';
   else if (user.role === 'admin') reason = 'admin_account';
   else if (user.isSuspended) reason = 'suspended';
   else if (!looksLikeEmail(normalizedEmail)) reason = 'invalid_email';
-  else if (!user.emailVerifiedAt) reason = 'email_unverified';
-  else if (user.marketingPreference?.status === 'unknown' || !user.marketingPreference?.status) reason = 'consent_unknown';
-  else if (user.marketingPreference?.status !== 'opted_in') reason = 'opted_out';
+  else if (preference === 'opted_out') reason = 'opted_out';
   else if (suppressedEmails.has(normalizedEmail)) reason = 'suppressed';
+  else if (!allowLegacyAudience && !user.emailVerifiedAt) reason = 'email_unverified';
+  else if (!allowLegacyAudience && preference !== 'opted_in') reason = 'consent_unknown';
 
   return {
     userId: user?._id,

@@ -3,12 +3,13 @@ import User from '../models/User.js';
 import EmailCampaign from '../models/EmailCampaign.js';
 import EmailCampaignDelivery from '../models/EmailCampaignDelivery.js';
 import MarketingSuppression from '../models/MarketingSuppression.js';
-import { assertCampaignSendConfig } from '../config/emailCampaign.js';
+import { assertCampaignSendConfig, getEmailCampaignConfig } from '../config/emailCampaign.js';
 import { dedupeAudience, evaluateCampaignEligibility } from '../utils/emailCampaignEligibility.js';
 import { hashUnsubscribeToken, makeUnsubscribeToken } from '../utils/marketingUnsubscribe.js';
 import { validateCampaignContent } from '../utils/emailCampaignTemplate.js';
 
 export async function buildCampaignAudience({ selectedUserIds } = {}) {
+  const { legacyAudienceEnabled } = getEmailCampaignConfig();
   const filter = { role: { $ne: 'admin' } };
   if (selectedUserIds?.length) filter._id = { $in: selectedUserIds };
   const [users, suppressions] = await Promise.all([
@@ -16,7 +17,11 @@ export async function buildCampaignAudience({ selectedUserIds } = {}) {
     MarketingSuppression.find({ active: true }).select('normalizedEmail').lean(),
   ]);
   const suppressed = new Set(suppressions.map((item) => item.normalizedEmail));
-  return dedupeAudience(users.map((user) => evaluateCampaignEligibility(user, suppressed)));
+  return dedupeAudience(users.map((user) => evaluateCampaignEligibility(
+    user,
+    suppressed,
+    { allowLegacyAudience: legacyAudienceEnabled }
+  )));
 }
 
 export async function queueCampaign(campaignId, adminId) {
