@@ -14,6 +14,12 @@ import { releaseEarnedFromPayout } from '../utils/wallet.js';
 import { signedVerificationDocUrl } from '../config/cloudinary.js';
 import { toReviewableDocs } from '../utils/verificationDocs.js';
 import {
+  buildManagedUserFilter,
+  USER_MANAGEMENT_STATS_PIPELINE,
+  USER_PROFILE_FILTERS,
+  USER_STATUS_FILTERS,
+} from '../utils/adminUserManagement.js';
+import {
   verificationApprovedEmail,
   verificationRejectedEmail,
   refundApprovedEmail,
@@ -125,24 +131,29 @@ export const getAllUsers = async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(MAX_PAGE_LIMIT, Math.max(1, parseInt(req.query.limit, 10) || DEFAULT_PAGE_LIMIT));
     const search = (req.query.search || '').trim();
+    const profile = req.query.profile || 'all';
+    const status = req.query.status || 'all';
 
-    const filter = search
-      ? {
-          $or: [
-            { name: { $regex: search, $options: 'i' } },
-            { email: { $regex: search, $options: 'i' } },
-          ],
-        }
-      : {};
+    if (!USER_PROFILE_FILTERS.includes(profile)) {
+      return res.status(400).json({ message: `Invalid profile filter. Must be one of: ${USER_PROFILE_FILTERS.join(', ')}` });
+    }
+    if (!USER_STATUS_FILTERS.includes(status)) {
+      return res.status(400).json({ message: `Invalid status filter. Must be one of: ${USER_STATUS_FILTERS.join(', ')}` });
+    }
 
-    const [users, totalCount] = await Promise.all([
+    const filter = buildManagedUserFilter({ search, profile, status });
+
+    const [users, totalCount, statsResult] = await Promise.all([
       User.find(filter)
-        .select('name email role createdAt isSuspended suspendedAt suspendedReason')
+        .select('name email role createdAt isSuspended suspendedAt suspendedReason skillsTeaching skillsLearning')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit),
       User.countDocuments(filter),
+      User.aggregate(USER_MANAGEMENT_STATS_PIPELINE),
     ]);
+
+    const stats = statsResult[0] || { totalUsers: 0, students: 0, teachers: 0 };
 
     res.json({
       users: users.map((u) => ({
@@ -154,7 +165,14 @@ export const getAllUsers = async (req, res) => {
         isSuspended: u.isSuspended,
         suspendedAt: u.suspendedAt,
         suspendedReason: u.suspendedReason,
+        isStudent: u.skillsLearning.length > 0,
+        isTeacher: u.skillsTeaching.length > 0,
       })),
+      stats: {
+        totalUsers: stats.totalUsers,
+        students: stats.students,
+        teachers: stats.teachers,
+      },
       page,
       totalPages: Math.max(1, Math.ceil(totalCount / limit)),
       totalCount,
