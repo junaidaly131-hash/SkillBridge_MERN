@@ -26,6 +26,7 @@ const getMissingConfig = (config) => config ? [
 function AdminEmailCampaigns() {
   const { error: showError, success: showSuccess, warning: showWarning } = useToast();
   const configurationToastShown = useRef(false);
+  const campaignActionInFlight = useRef(false);
   const [campaigns, setCampaigns] = useState([]);
   const [config, setConfig] = useState(null);
   const [current, setCurrent] = useState(null);
@@ -143,16 +144,40 @@ function AdminEmailCampaigns() {
     if (campaign) setWorkspace('campaigns');
   };
   const updateContent = (key, value) => setCurrent((item) => ({ ...item, content: { ...item.content, [key]: value } }));
+  const persistDraft = async (extra = {}) => {
+    const campaign = current;
+    if (!campaign?.id || campaign.state !== 'draft') {
+      const error = new Error('Only a draft campaign can be edited.');
+      error.response = { status: 409, data: { message: error.message } };
+      throw error;
+    }
+    const { data } = await apiClient.patch(`/admin/email-campaigns/${campaign.id}`, {
+      name: campaign.name, content: campaign.content, selectedUserIds: campaign.selectedUserIds,
+      selectedExternalContactIds: campaign.selectedExternalContactIds, audienceSource: campaign.audienceSource, ...extra,
+    });
+    setCurrent(data.campaign);
+    setCampaigns((items) => items.map((item) => item.id === data.campaign.id ? data.campaign : item));
+    return data.campaign;
+  };
+  const refreshAfterCampaignConflict = async (error) => {
+    if (error.response?.status === 409) await loadCampaigns().catch(() => {});
+  };
   const save = async (extra = {}) => {
+    if (campaignActionInFlight.current) return null;
+    campaignActionInFlight.current = true;
     setBusy(true);
     try {
-      const { data } = await apiClient.patch(`/admin/email-campaigns/${current.id}`, {
-        name: current.name, content: current.content, selectedUserIds: current.selectedUserIds,
-        selectedExternalContactIds: current.selectedExternalContactIds, audienceSource: current.audienceSource, ...extra,
-      });
-      setCurrent(data.campaign); await loadCampaigns(); showSuccess('Draft saved.'); return data.campaign;
-    } catch (error) { showError(error.response?.data?.message || "Couldn't save draft."); return null; }
-    finally { setBusy(false); }
+      const campaign = await persistDraft(extra);
+      showSuccess('Draft saved.');
+      return campaign;
+    } catch (error) {
+      await refreshAfterCampaignConflict(error);
+      showError(error.response?.data?.message || "Couldn't save draft.");
+      return null;
+    } finally {
+      campaignActionInFlight.current = false;
+      setBusy(false);
+    }
   };
   const renderPreview = async () => {
     try { const { data } = await apiClient.post('/admin/email-campaigns/preview', { content: current.content, recipientName: 'Junaid' }); setPreview(data); }
@@ -184,15 +209,36 @@ function AdminEmailCampaigns() {
     } catch (error) { showError(error.response?.data?.message || "Couldn't resolve the filtered audience."); }
   };
   const sendTest = async () => {
-    setBusy(true); try { const saved = await save(); if (!saved) return; const { data } = await apiClient.post(`/admin/email-campaigns/${current.id}/test`); showSuccess(data.message); }
-    catch (error) { showError(error.response?.data?.message || "Couldn't send test."); } finally { setBusy(false); }
+    if (campaignActionInFlight.current) return;
+    campaignActionInFlight.current = true;
+    setBusy(true);
+    try {
+      const saved = await persistDraft();
+      const { data } = await apiClient.post(`/admin/email-campaigns/${saved.id}/test`);
+      showSuccess(data.message);
+    } catch (error) {
+      await refreshAfterCampaignConflict(error);
+      showError(error.response?.data?.message || "Couldn't send test.");
+    } finally {
+      campaignActionInFlight.current = false;
+      setBusy(false);
+    }
   };
   const queue = async () => {
-    setBusy(true); try {
-      const saved = await save(); if (!saved) return;
-      const { data } = await apiClient.post(`/admin/email-campaigns/${current.id}/queue`, { confirmation });
+    if (campaignActionInFlight.current) return;
+    campaignActionInFlight.current = true;
+    setBusy(true);
+    try {
+      const saved = await persistDraft();
+      const { data } = await apiClient.post(`/admin/email-campaigns/${saved.id}/queue`, { confirmation });
       setCurrent(data.campaign); setConfirmation(''); await loadCampaigns(); showSuccess('Campaign queued safely.');
-    } catch (error) { showError(error.response?.data?.message || "Couldn't queue campaign."); } finally { setBusy(false); }
+    } catch (error) {
+      await refreshAfterCampaignConflict(error);
+      showError(error.response?.data?.message || "Couldn't queue campaign.");
+    } finally {
+      campaignActionInFlight.current = false;
+      setBusy(false);
+    }
   };
   const openCampaign = async (campaign) => {
     setCurrent(campaign); setPreview(null); setDeliveries([]);
@@ -222,7 +268,7 @@ function AdminEmailCampaigns() {
               <p className="mt-3 text-sm font-semibold">{selected.size + selectedExternal.size} source record{selected.size + selectedExternal.size===1?'':'s'} selected; the final unique email count is resolved by the server.</p>
             </section>
             {preview&&<section className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-sm sm:p-6"><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-bold">Exact server-rendered preview</h2><div className="rounded-lg bg-light-bg p-1">{['desktop','mobile','plain'].map(mode=><button key={mode} onClick={()=>setPreviewMode(mode)} className={`rounded-md px-3 py-2 text-xs font-semibold capitalize ${previewMode===mode?'bg-white shadow':''}`}>{mode}</button>)}</div></div>{previewMode==='plain'?<pre className="whitespace-pre-wrap rounded-xl bg-light-bg p-4 text-sm">{preview.text}</pre>:<div className="overflow-auto rounded-xl bg-[#E8EBF0] p-3"><iframe title="Email preview" sandbox="" srcDoc={preview.html} className={`mx-auto h-[620px] bg-white ${previewMode==='mobile'?'w-[360px] max-w-full':'w-full'}`}/></div>}</section>}
-            <section className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-sm sm:p-6"><h2 className="text-xl font-bold">Final review & send</h2><div className="mt-4 rounded-xl bg-light-bg p-4 text-sm"><p><strong>Selected source records:</strong> {selected.size + selectedExternal.size}</p><p className="mt-1"><strong>Unique recipients now:</strong> {audienceReview?`${audienceReview.uniqueRecipients} total · ${audienceReview.eligibleRecipients} eligible · ${audienceReview.excludedRecipients} excluded`:'Resolving securely…'}</p><p className="mt-1"><strong>Audience:</strong> {current.audienceSource||'users'}; unknown external permission is always excluded</p><p className="mt-1"><strong>Queue:</strong> unique addresses and provenance are frozen, then current eligibility is checked again immediately before send</p></div><label className="mt-4 block text-sm font-semibold">Type SEND CAMPAIGN<input value={confirmation} onChange={(e)=>setConfirmation(e.target.value)} className="mt-1 w-full rounded-xl border border-[#D7D7D7] px-4 py-3 outline-none focus:border-teal"/></label><button onClick={queue} disabled={busy||confirmation!=='SEND CAMPAIGN'||!configured||!audienceReview?.eligibleRecipients} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-teal-button px-4 py-3 font-semibold text-white disabled:opacity-40"><CheckCircle2 size={18}/>Freeze audience and queue</button></section>
+            <section className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-sm sm:p-6"><h2 className="text-xl font-bold">Final review & send</h2><div className="mt-4 rounded-xl bg-light-bg p-4 text-sm"><p><strong>Selected source records:</strong> {selected.size + selectedExternal.size}</p><p className="mt-1"><strong>Unique recipients now:</strong> {audienceReview?`${audienceReview.uniqueRecipients} total · ${audienceReview.eligibleRecipients} eligible · ${audienceReview.excludedRecipients} excluded`:'Resolving securely…'}</p><p className="mt-1"><strong>Audience:</strong> {current.audienceSource||'users'}; unknown external permission is always excluded</p><p className="mt-1"><strong>Queue:</strong> unique addresses and provenance are frozen, then current eligibility is checked again immediately before send</p></div><label className="mt-4 block text-sm font-semibold">Type SEND CAMPAIGN<input value={confirmation} onChange={(e)=>setConfirmation(e.target.value)} className="mt-1 w-full rounded-xl border border-[#D7D7D7] px-4 py-3 outline-none focus:border-teal"/></label><button type="button" onClick={queue} disabled={busy||confirmation!=='SEND CAMPAIGN'||!configured||!audienceReview?.eligibleRecipients} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-teal-button px-4 py-3 font-semibold text-white disabled:opacity-40"><CheckCircle2 size={18}/>Freeze audience and queue</button></section>
           </> : <section className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-sm sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold">Delivery status</h2><p className="mt-1 text-sm text-gray">Provider acceptance is tracked separately from confirmed delivery. Active queues refresh every 10 seconds.</p></div><button onClick={()=>openCampaign(current)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/>Refresh</button></div><div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">{Object.entries(current.counts||{}).map(([label,value])=><div key={label} className="rounded-xl bg-light-bg p-3"><strong className="text-xl">{value}</strong><p className="text-xs capitalize text-gray">{label.replace(/([A-Z])/g,' $1')}</p></div>)}</div><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[640px] text-left text-sm"><thead><tr className="border-b"><th className="p-3">Recipient</th><th>Status</th><th>Attempts</th><th>Provider event</th><th>Reason / error</th></tr></thead><tbody>{deliveries.map(row=><tr key={row._id} className="border-b last:border-0"><td className="p-3"><strong>{row.recipientName}</strong><div className="text-xs text-gray">{row.normalizedEmail}</div></td><td className="capitalize">{row.status.replace('_',' ')}</td><td>{row.attempts}</td><td>{row.lastProviderEventType||'—'}</td><td className="max-w-52 truncate">{row.skippedReason||row.lastErrorMessage||'—'}</td></tr>)}</tbody></table></div>{deliveryPagination.pages>1&&<div className="mt-4 flex items-center justify-between text-sm"><button disabled={deliveryPagination.page<=1} onClick={()=>loadDeliveries(current.id,deliveryPagination.page-1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Previous</button><span>Page {deliveryPagination.page} of {deliveryPagination.pages} · {deliveryPagination.total} recipients</span><button disabled={deliveryPagination.page>=deliveryPagination.pages} onClick={()=>loadDeliveries(current.id,deliveryPagination.page+1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Next</button></div>}</section>}
         </main>}
       </div></>}
