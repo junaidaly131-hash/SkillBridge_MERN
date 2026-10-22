@@ -44,7 +44,7 @@ const emailCampaignSchema = new mongoose.Schema({
   templateVersion: { type: Number, default: 1 },
   state: {
     type: String,
-    enum: ['draft', 'preparing', 'queued', 'sending', 'completed', 'partial', 'failed'],
+    enum: ['draft', 'preparing', 'queued', 'sending', 'completed', 'partial', 'failed', 'cancelled'],
     default: 'draft',
     index: true,
   },
@@ -62,6 +62,8 @@ const emailCampaignSchema = new mongoose.Schema({
   startedAt: { type: Date, default: null },
   completedAt: { type: Date, default: null },
   lastError: { type: String, default: null, maxlength: 500 },
+  deletedAt: { type: Date, default: null, index: true },
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true });
 
 emailCampaignSchema.index({ createdAt: -1 });

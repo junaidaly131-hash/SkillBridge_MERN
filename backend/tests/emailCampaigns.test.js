@@ -152,10 +152,15 @@ test('delivery schema enforces campaign user and email uniqueness', () => {
 test('campaign state machine includes a non-send preparation state', () => {
   assert.ok(EmailCampaign.schema.path('state').enumValues.includes('preparing'));
 });
+test('campaign state machine supports safe cancellation and soft removal', () => {
+  assert.ok(EmailCampaign.schema.path('state').enumValues.includes('cancelled'));
+  assert.ok(EmailCampaign.schema.path('deletedAt'));
+  assert.ok(EmailCampaign.schema.path('deletedBy'));
+});
 test('every campaign endpoint is behind authentication and admin authorization', () => {
   assert.deepEqual(adminEmailCampaignRouter.stack.slice(0, 2).map((layer) => layer.name), ['authenticateToken', 'requireAdmin']);
 });
-test('admin campaign router exposes a protected draft deletion endpoint', () => {
+test('admin campaign router exposes a protected campaign removal endpoint', () => {
   const deleteRoute = adminEmailCampaignRouter.stack.find((layer) => layer.route?.path === '/:id' && layer.route.methods.delete);
   assert.ok(deleteRoute);
 });

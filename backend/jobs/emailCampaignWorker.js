@@ -52,6 +52,16 @@ export async function processCampaignDelivery(delivery) {
     MarketingSuppression.findOne({ normalizedEmail: delivery.normalizedEmail, active: true }).lean(),
   ]);
   if (!campaign?.frozenContent) throw Object.assign(new Error('Campaign snapshot is missing'), { code: 'CAMPAIGN_CONFIG_MISSING' });
+  if (campaign.deletedAt || campaign.state === 'cancelled') {
+    delivery.status = 'skipped';
+    delivery.active = false;
+    delivery.skippedReason = 'campaign_cancelled';
+    delivery.leaseUntil = null;
+    delivery.leaseOwner = null;
+    await delivery.save();
+    await refreshCampaignCounts(delivery.campaign);
+    return;
+  }
 
   const suppressed = new Set(suppression ? [delivery.normalizedEmail] : []);
   const optedOutUsers = new Set(users.filter((user) => user.marketingPreference?.status === 'opted_out').map((user) => String(user.email).toLowerCase()));
@@ -76,6 +86,20 @@ export async function processCampaignDelivery(delivery) {
     delivery.status = 'skipped';
     delivery.active = false;
     delivery.skippedReason = eligibility.normalizedEmail !== delivery.normalizedEmail ? 'email_changed' : eligibility.skipReason;
+    delivery.leaseUntil = null;
+    delivery.leaseOwner = null;
+    await delivery.save();
+    await refreshCampaignCounts(delivery.campaign);
+    return;
+  }
+
+  // Recheck immediately before handing the message to the provider. This
+  // closes the normal cancellation race after the slower eligibility reads.
+  const campaignStillActive = await EmailCampaign.exists({ _id: campaign._id, deletedAt: null, state: { $ne: 'cancelled' } });
+  if (!campaignStillActive) {
+    delivery.status = 'skipped';
+    delivery.active = false;
+    delivery.skippedReason = 'campaign_cancelled';
     delivery.leaseUntil = null;
     delivery.leaseOwner = null;
     await delivery.save();

@@ -13,6 +13,7 @@ const fields = [
 const statusTone = {
   draft: 'bg-gray-100 text-gray-700', queued: 'bg-blue-50 text-blue-700', sending: 'bg-amber-50 text-amber-700',
   completed: 'bg-emerald-50 text-emerald-700', partial: 'bg-orange-50 text-orange-700', failed: 'bg-red-50 text-red-700',
+  cancelled: 'bg-gray-100 text-gray-700',
 };
 
 const getMissingConfig = (config) => config ? [
@@ -243,7 +244,7 @@ function AdminEmailCampaigns() {
       setBusy(false);
     }
   };
-  const deleteDraft = async () => {
+  const deleteCampaign = async () => {
     if (!deleteTarget?.id || campaignActionInFlight.current) return;
     campaignActionInFlight.current = true;
     setBusy(true);
@@ -257,11 +258,11 @@ function AdminEmailCampaigns() {
         || remaining.find((item) => item.state === 'draft')
         || remaining[0];
       if (nextCampaign && nextCampaign.state !== 'draft') await loadDeliveries(nextCampaign.id);
-      showSuccess(data.message || 'Draft campaign deleted.');
+      showSuccess(data.message || 'Campaign removed.');
     } catch (error) {
       await refreshAfterCampaignConflict(error);
       if (error.response?.status === 409) setDeleteTarget(null);
-      showError(error.response?.data?.message || "Couldn't delete draft campaign.");
+      showError(error.response?.data?.message || "Couldn't remove campaign.");
     } finally {
       campaignActionInFlight.current = false;
       setBusy(false);
@@ -283,7 +284,7 @@ function AdminEmailCampaigns() {
       <div className="mb-5 inline-flex w-full rounded-xl bg-white p-1 shadow-sm sm:w-auto"><button onClick={()=>setWorkspace('campaigns')} className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold sm:flex-none ${workspace==='campaigns'?'bg-dark-blue text-white':'text-gray'}`}><Mail size={17}/>Campaigns</button><button onClick={()=>setWorkspace('contacts')} className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold sm:flex-none ${workspace==='contacts'?'bg-dark-blue text-white':'text-gray'}`}><Contact size={17}/>External Contacts</button></div>
       {workspace==='contacts'?<ExternalContactsPanel selectedIds={current?.state==='draft'?(current.selectedExternalContactIds||[]):[]} onSelectionChange={updateExternalSelection} selectionBusy={busy} hasDraftCampaign={current?.state==='draft'}/>:<>
       <div className="grid items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="self-start rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-sm xl:sticky xl:top-6"><h2 className="px-2 py-2 font-bold">Campaign history</h2><div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100vh-15rem)]">{campaigns.map((item) => <div key={item.id} className={`flex items-start rounded-xl border ${current?.id === item.id ? 'border-teal bg-light-teal' : 'border-transparent hover:bg-light-bg'}`}><button type="button" onClick={() => openCampaign(item)} className="min-w-0 flex-1 p-3 text-left"><div className="flex items-start justify-between gap-2"><span className="font-semibold text-black">{item.name}</span><span className={`rounded-full px-2 py-1 text-[10px] font-semibold capitalize ${statusTone[item.state]}`}>{item.state}</span></div><p className="mt-1 truncate text-xs text-gray">{item.content?.subject}</p><p className="mt-2 text-[11px] text-gray">{new Date(item.createdAt).toLocaleString()}</p></button>{item.state === 'draft' && <button type="button" aria-label={`Delete draft ${item.name}`} title="Delete draft" disabled={busy} onClick={() => setDeleteTarget(item)} className="m-2 rounded-lg p-2 text-gray transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"><Trash2 size={16}/></button>}</div>)}{!campaigns.length && <p className="p-6 text-center text-sm text-gray">No campaigns yet.</p>}</div></aside>
+        <aside className="self-start rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-sm xl:sticky xl:top-6"><h2 className="px-2 py-2 font-bold">Campaign history</h2><div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100vh-15rem)]">{campaigns.map((item) => <div key={item.id} className={`flex items-start rounded-xl border ${current?.id === item.id ? 'border-teal bg-light-teal' : 'border-transparent hover:bg-light-bg'}`}><button type="button" onClick={() => openCampaign(item)} className="min-w-0 flex-1 p-3 text-left"><div className="flex items-start justify-between gap-2"><span className="font-semibold text-black">{item.name}</span><span className={`rounded-full px-2 py-1 text-[10px] font-semibold capitalize ${statusTone[item.state]}`}>{item.state}</span></div><p className="mt-1 truncate text-xs text-gray">{item.content?.subject}</p><p className="mt-2 text-[11px] text-gray">{new Date(item.createdAt).toLocaleString()}</p></button>{item.state !== 'preparing' && <button type="button" aria-label={`Remove campaign ${item.name}`} title="Remove campaign" disabled={busy} onClick={() => setDeleteTarget(item)} className="m-2 rounded-lg p-2 text-gray transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40"><Trash2 size={16}/></button>}</div>)}{!campaigns.length && <p className="p-6 text-center text-sm text-gray">No campaigns yet.</p>}</div></aside>
         {!current ? <section className="flex min-h-[420px] items-center justify-center rounded-2xl border border-dashed border-[#D7D7D7] bg-white p-8 text-center"><div><Mail className="mx-auto text-teal" size={42}/><h2 className="mt-4 text-xl font-bold">Create your first campaign</h2><p className="mt-2 text-sm text-gray">The AI Tutor template is ready to customise.</p></div></section> : <main className="space-y-5">
           {current.state === 'draft' ? <>
             <section className="rounded-2xl border border-[#E5E5E5] bg-white p-4 shadow-sm sm:p-6"><div className="mb-5 flex items-center gap-2"><Mail className="text-teal"/><h2 className="text-xl font-bold">Campaign content</h2></div><label className="text-sm font-semibold">Internal name<input value={current.name} onChange={(e) => setCurrent({...current, name:e.target.value})} className="mt-1 w-full rounded-xl border border-[#D7D7D7] px-4 py-3 outline-none focus:border-teal"/></label><div className="mt-4 grid gap-4 sm:grid-cols-2">{fields.map(([key,label]) => <label key={key} className={`text-sm font-semibold ${['message','closing'].includes(key)?'sm:col-span-2':''}`}>{label}{['message','closing'].includes(key)?<textarea rows={key==='message'?6:3} value={current.content?.[key]||''} onChange={(e)=>updateContent(key,e.target.value)} className="mt-1 w-full rounded-xl border border-[#D7D7D7] px-4 py-3 font-normal outline-none focus:border-teal"/>:<input value={current.content?.[key]||''} onChange={(e)=>updateContent(key,e.target.value)} className="mt-1 w-full rounded-xl border border-[#D7D7D7] px-4 py-3 font-normal outline-none focus:border-teal"/>}</label>)}</div><p className="mt-3 text-xs text-gray">Use <code>{'{{firstName}}'}</code> for safe name personalisation. Other template tokens are rejected.</p><div className="mt-5 flex flex-wrap gap-2"><button onClick={()=>save()} disabled={busy} className="rounded-xl bg-dark-blue px-4 py-2.5 font-semibold text-white">Save draft</button><button onClick={renderPreview} className="inline-flex items-center gap-2 rounded-xl border border-[#D7D7D7] px-4 py-2.5 font-semibold"><Eye size={17}/>Preview</button><button onClick={sendTest} disabled={busy||!configured} className="inline-flex items-center gap-2 rounded-xl border border-teal px-4 py-2.5 font-semibold text-teal disabled:opacity-40"><Send size={17}/>Send test to me</button></div></section>
@@ -303,11 +304,15 @@ function AdminEmailCampaigns() {
     <ConfirmModal
       isOpen={Boolean(deleteTarget)}
       onClose={() => setDeleteTarget(null)}
-      onConfirm={deleteDraft}
-      title="Delete draft campaign?"
-      message={`“${deleteTarget?.name || 'This draft'}” will be permanently deleted. Sent and queued campaign history is not affected.`}
-      confirmLabel="Delete draft"
-      confirmingLabel="Deleting..."
+      onConfirm={deleteCampaign}
+      title={deleteTarget?.state === 'draft' ? 'Delete draft campaign?' : 'Remove campaign?'}
+      message={deleteTarget?.state === 'draft'
+        ? `“${deleteTarget?.name || 'This draft'}” will be permanently deleted.`
+        : ['queued', 'sending'].includes(deleteTarget?.state)
+          ? `“${deleteTarget?.name || 'This campaign'}” will be removed and all unsent deliveries will be cancelled. Emails already accepted by the provider cannot be recalled.`
+          : `“${deleteTarget?.name || 'This campaign'}” will be removed from campaign history. Delivery audit records will be retained.`}
+      confirmLabel={deleteTarget?.state === 'draft' ? 'Delete draft' : 'Remove campaign'}
+      confirmingLabel="Removing..."
       isConfirming={busy}
     />
   </div>;

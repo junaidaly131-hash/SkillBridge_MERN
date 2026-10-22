@@ -37,7 +37,7 @@ const serialize = (campaign) => ({
 });
 
 router.get('/', route(async (req, res) => {
-  const campaigns = await EmailCampaign.find({}).sort({ createdAt: -1 }).limit(100).lean();
+  const campaigns = await EmailCampaign.find({ deletedAt: null }).sort({ createdAt: -1 }).limit(100).lean();
   res.json({ campaigns: campaigns.map(serialize), config: getEmailCampaignConfig() });
 }));
 
@@ -153,18 +153,53 @@ router.delete('/:id', route(async (req, res) => {
   // The state predicate makes delete-vs-queue atomic: once a queue request
   // claims the draft as "preparing", it can no longer be removed here.
   const campaign = await EmailCampaign.findOneAndDelete({ _id: req.params.id, state: 'draft' });
-  if (!campaign) {
-    const exists = await EmailCampaign.exists({ _id: req.params.id });
-    if (exists) return res.status(409).json({ message: 'Only draft campaigns can be deleted.' });
-    return res.status(404).json({ message: 'Campaign not found' });
+  if (campaign) {
+    await logAdminAction({
+      adminId: req.user.userId,
+      action: 'email_campaign_draft_deleted',
+      details: { campaignId: campaign._id, name: campaign.name },
+    });
+    return res.json({ success: true, deletedCampaignId: String(campaign._id), message: 'Draft campaign deleted.' });
   }
 
+  const existing = await EmailCampaign.findOne({ _id: req.params.id, deletedAt: null }).select('name state').lean();
+  if (!existing) return res.status(404).json({ message: 'Campaign not found' });
+  if (existing.state === 'preparing') {
+    return res.status(409).json({ message: 'This campaign is preparing its queue. Wait a moment, then remove it safely.' });
+  }
+
+  const removedAt = new Date();
+  const removed = await EmailCampaign.findOneAndUpdate(
+    { _id: existing._id, state: existing.state, deletedAt: null },
+    { $set: { state: 'cancelled', deletedAt: removedAt, deletedBy: req.user.userId, updatedBy: req.user.userId } },
+    { new: true }
+  );
+  if (!removed) return res.status(409).json({ message: 'Campaign status changed. Refresh and try again.' });
+
+  // Stop every delivery that has not already reached a terminal provider
+  // outcome. A request already accepted by the provider cannot be recalled.
+  const cancelled = await EmailCampaignDelivery.updateMany(
+    { campaign: removed._id, active: true, status: { $in: ['queued', 'retry_pending', 'sending'] } },
+    {
+      $set: {
+        status: 'skipped', active: false, skippedReason: 'campaign_cancelled',
+        leaseUntil: null, leaseOwner: null, lastErrorCode: 'CAMPAIGN_CANCELLED',
+        lastErrorMessage: 'Campaign was removed by an administrator before this delivery was sent.',
+      },
+    }
+  );
   await logAdminAction({
     adminId: req.user.userId,
-    action: 'email_campaign_draft_deleted',
-    details: { campaignId: campaign._id, name: campaign.name },
+    action: 'email_campaign_removed',
+    details: { campaignId: removed._id, name: removed.name, previousState: existing.state, cancelledDeliveries: cancelled.modifiedCount },
   });
-  res.json({ success: true, deletedCampaignId: String(campaign._id), message: 'Draft campaign deleted.' });
+  return res.json({
+    success: true,
+    deletedCampaignId: String(removed._id),
+    message: cancelled.modifiedCount
+      ? `Campaign removed and ${cancelled.modifiedCount} unsent ${cancelled.modifiedCount === 1 ? 'delivery was' : 'deliveries were'} cancelled.`
+      : 'Campaign removed from history.',
+  });
 }));
 
 router.get('/:id/review', route(async (req, res) => {

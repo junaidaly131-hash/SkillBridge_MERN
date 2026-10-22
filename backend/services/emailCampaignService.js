@@ -131,6 +131,12 @@ export async function refreshCampaignCounts(campaignId) {
   for (const row of rows) counts[keys[row._id] || row._id] = row.count;
   const outstanding = counts.queued + counts.sending + counts.retryPending;
   const terminalProblems = counts.failed + counts.skipped + counts.unknown;
+  const campaign = await EmailCampaign.findById(campaignId).select('state').lean();
+  if (!campaign) return counts;
+  if (campaign.state === 'cancelled') {
+    await EmailCampaign.updateOne({ _id: campaignId, state: 'cancelled' }, { $set: { counts } });
+    return counts;
+  }
   const update = { counts };
   if (outstanding === 0) {
     update.state = terminalProblems ? 'partial' : 'completed';
