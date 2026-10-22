@@ -107,13 +107,32 @@ function AdminEmailCampaigns() {
   // Selection keys intentionally replace mutable Set/object identities here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id, current?.state, current?.audienceSource, userSelectionKey, externalSelectionKey]);
-  const createCampaign = async () => {
+  const createCampaign = async (initialExternalIds = []) => {
     setBusy(true);
     try {
       const { data } = await apiClient.post('/admin/email-campaigns', { name: 'Introduce SkillBridge', templateKey: 'introduce_skillbridge' });
-      setCurrent(data.campaign); setCampaigns((items) => [data.campaign, ...items]);
-    } catch (error) { showError(error.response?.data?.message || "Couldn't create campaign."); }
+      const selectedExternalContactIds = [...new Set(initialExternalIds.map(String))];
+      const campaign = selectedExternalContactIds.length ? {
+        ...data.campaign,
+        selectedExternalContactIds,
+        audienceSource: 'external',
+      } : data.campaign;
+      setCurrent(campaign); setCampaigns((items) => [campaign, ...items]);
+      return campaign;
+    } catch (error) { showError(error.response?.data?.message || "Couldn't create campaign."); return null; }
     finally { setBusy(false); }
+  };
+  const updateExternalSelection = async (ids) => {
+    if (current?.state === 'draft') {
+      setCurrent((item) => ({
+        ...item,
+        selectedExternalContactIds: ids,
+        audienceSource: item.audienceSource === 'users' ? 'both' : (item.audienceSource || 'external'),
+      }));
+      return;
+    }
+    const campaign = await createCampaign(ids);
+    if (campaign) showSuccess('A new draft campaign was created for the selected external contacts.');
   };
   const updateContent = (key, value) => setCurrent((item) => ({ ...item, content: { ...item.content, [key]: value } }));
   const save = async (extra = {}) => {
@@ -178,9 +197,9 @@ function AdminEmailCampaigns() {
   const configured = Boolean(config) && missingConfig.length === 0;
   return <div className="min-h-screen bg-light-bg p-4 font-family-poppins sm:p-6 lg:p-8">
     <div className="mx-auto max-w-7xl">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold text-black sm:text-3xl">Email Campaigns</h1><p className="mt-1 text-sm text-gray">Create consent-based updates and monitor every recipient safely.</p></div><button onClick={createCampaign} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-teal-button px-4 py-3 font-semibold text-white disabled:opacity-50"><Plus size={18}/>New campaign</button></div>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold text-black sm:text-3xl">Email Campaigns</h1><p className="mt-1 text-sm text-gray">Create consent-based updates and monitor every recipient safely.</p></div><button onClick={()=>createCampaign()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-teal-button px-4 py-3 font-semibold text-white disabled:opacity-50"><Plus size={18}/>New campaign</button></div>
       <div className="mb-5 inline-flex w-full rounded-xl bg-white p-1 shadow-sm sm:w-auto"><button onClick={()=>setWorkspace('campaigns')} className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold sm:flex-none ${workspace==='campaigns'?'bg-dark-blue text-white':'text-gray'}`}><Mail size={17}/>Campaigns</button><button onClick={()=>setWorkspace('contacts')} className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold sm:flex-none ${workspace==='contacts'?'bg-dark-blue text-white':'text-gray'}`}><Contact size={17}/>External Contacts</button></div>
-      {workspace==='contacts'?<ExternalContactsPanel selectedIds={current?.selectedExternalContactIds||[]} onSelectionChange={current?.state==='draft'?(ids)=>setCurrent({...current,selectedExternalContactIds:ids,audienceSource:current.audienceSource==='users'?'both':(current.audienceSource||'external')}):undefined}/>:<>
+      {workspace==='contacts'?<ExternalContactsPanel selectedIds={current?.state==='draft'?(current.selectedExternalContactIds||[]):[]} onSelectionChange={updateExternalSelection} selectionBusy={busy} hasDraftCampaign={current?.state==='draft'}/>:<>
       <div className="grid items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="self-start rounded-2xl border border-[#E5E5E5] bg-white p-3 shadow-sm xl:sticky xl:top-6"><h2 className="px-2 py-2 font-bold">Campaign history</h2><div className="max-h-[26rem] space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100vh-15rem)]">{campaigns.map((item) => <button key={item.id} onClick={() => openCampaign(item)} className={`w-full rounded-xl border p-3 text-left ${current?.id === item.id ? 'border-teal bg-light-teal' : 'border-transparent hover:bg-light-bg'}`}><div className="flex items-start justify-between gap-2"><span className="font-semibold text-black">{item.name}</span><span className={`rounded-full px-2 py-1 text-[10px] font-semibold capitalize ${statusTone[item.state]}`}>{item.state}</span></div><p className="mt-1 truncate text-xs text-gray">{item.content?.subject}</p><p className="mt-2 text-[11px] text-gray">{new Date(item.createdAt).toLocaleString()}</p></button>)}{!campaigns.length && <p className="p-6 text-center text-sm text-gray">No campaigns yet.</p>}</div></aside>
         {!current ? <section className="flex min-h-[420px] items-center justify-center rounded-2xl border border-dashed border-[#D7D7D7] bg-white p-8 text-center"><div><Mail className="mx-auto text-teal" size={42}/><h2 className="mt-4 text-xl font-bold">Create your first campaign</h2><p className="mt-2 text-sm text-gray">The AI Tutor template is ready to customise.</p></div></section> : <main className="space-y-5">
