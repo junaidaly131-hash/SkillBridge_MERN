@@ -148,10 +148,6 @@ router.patch('/me/marketing-preference', authenticateToken, async (req, res) => 
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (user.role === 'admin') return res.status(403).json({ message: 'Admin accounts cannot receive campaigns' });
-    if (req.body.subscribed && !user.emailVerifiedAt) {
-      return res.status(400).json({ message: 'Verify your email before subscribing to updates.' });
-    }
-
     const normalizedEmail = user.email.trim().toLowerCase();
     if (req.body.subscribed) {
       const providerSuppression = await MarketingSuppression.exists({ normalizedEmail, active: true, reason: { $in: ['hard_bounce', 'complaint'] } });

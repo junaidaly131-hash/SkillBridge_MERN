@@ -147,6 +147,26 @@ router.patch('/:id', route(async (req, res) => {
   res.json({ campaign: serialize(campaign) });
 }));
 
+router.delete('/:id', route(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Campaign not found' });
+
+  // The state predicate makes delete-vs-queue atomic: once a queue request
+  // claims the draft as "preparing", it can no longer be removed here.
+  const campaign = await EmailCampaign.findOneAndDelete({ _id: req.params.id, state: 'draft' });
+  if (!campaign) {
+    const exists = await EmailCampaign.exists({ _id: req.params.id });
+    if (exists) return res.status(409).json({ message: 'Only draft campaigns can be deleted.' });
+    return res.status(404).json({ message: 'Campaign not found' });
+  }
+
+  await logAdminAction({
+    adminId: req.user.userId,
+    action: 'email_campaign_draft_deleted',
+    details: { campaignId: campaign._id, name: campaign.name },
+  });
+  res.json({ success: true, deletedCampaignId: String(campaign._id), message: 'Draft campaign deleted.' });
+}));
+
 router.get('/:id/review', route(async (req, res) => {
   const campaign = await EmailCampaign.findById(req.params.id).lean();
   if (!campaign) return res.status(404).json({ message: 'Campaign not found' });

@@ -14,7 +14,6 @@ export function evaluateCampaignEligibility(user, suppressedEmails = new Set(), 
   else if (!looksLikeEmail(normalizedEmail)) reason = 'invalid_email';
   else if (preference === 'opted_out') reason = 'opted_out';
   else if (suppressedEmails.has(normalizedEmail)) reason = 'suppressed';
-  else if (!allowLegacyAudience && !user.emailVerifiedAt) reason = 'email_unverified';
   else if (!allowLegacyAudience && preference !== 'opted_in') reason = 'consent_unknown';
 
   return {

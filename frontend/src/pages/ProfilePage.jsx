@@ -8,17 +8,11 @@ import { VERIFICATION_DOC_TYPES } from "../utils/verificationDocTypes";
 import DocumentViewer from "../ui/DocumentViewer";
 import Badge from "../ui/Badge";
 import EditProfileModal from "../components/Modal/EditProfileModal";
-import AddSkillModal from "../components/Modal/AddSkillModal";
-import AddCertificationModal from "../components/Modal/AddCertificationModal";
 import apiClient from "../api/client";
 import { downloadBlob } from "../utils/downloadBlob";
 import { useToast } from "../ui/Toast";
 import {
   fetchProfile,
-  removeTeachingSkill,
-  removeLearningSkill,
-  removeCertification,
-  addCertification,
   submitVerification,
   setVerificationStatus,
 } from "../store/profileSlice";
@@ -38,11 +32,6 @@ function ProfilePage() {
 
   const [previewCert, setPreviewCert] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isAddTeachingSkillOpen, setIsAddTeachingSkillOpen] = useState(false);
-  const [isAddLearningSkillOpen, setIsAddLearningSkillOpen] = useState(false);
-  const [isAddCertificationOpen, setIsAddCertificationOpen] = useState(false);
-  const [isEditCertificationOpen, setIsEditCertificationOpen] = useState(false);
-  const [editingCert, setEditingCert] = useState(null);
   // { [docType]: File }
   const [verificationFiles, setVerificationFiles] = useState({});
   // Non-recommended slots the user chose to add.
@@ -81,24 +70,6 @@ function ProfilePage() {
     socket.on("verificationReviewed", onReviewed);
     return () => socket.off("verificationReviewed", onReviewed);
   }, [dispatch]);
-
-  const handleRemoveTeachingSkill = async (skillId) => {
-    try {
-      await dispatch(removeTeachingSkill(skillId)).unwrap();
-    } catch (err) {
-      // Surfaces the server's reason - notably the guard that stops someone
-      // dropping their last teaching skill while earned credits are unpaid.
-      showError(err || "Failed to remove teaching skill");
-    }
-  };
-
-  const handleRemoveLearningSkill = (skillId) => {
-    dispatch(removeLearningSkill(skillId));
-  };
-
-  const handleRemoveCertification = (certId) => {
-    dispatch(removeCertification(certId));
-  };
 
   // One slot per document type, so a teacher is told what to provide instead
   // of dropping an unlabelled pile of files on the reviewer. State is keyed by
@@ -202,23 +173,6 @@ function ProfilePage() {
     }
   };
 
-  const handleOpenEditCertification = (cert) => {
-    setEditingCert(cert);
-    setIsEditCertificationOpen(true);
-  };
-
-  const handleSubmitEditCertification = async (data) => {
-    try {
-      await dispatch(addCertification(data)).unwrap();
-      await dispatch(removeCertification(editingCert._id)).unwrap();
-      setIsEditCertificationOpen(false);
-      setEditingCert(null);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to save changes");
-    }
-  };
-
   const handleDownloadCertification = async (cert) => {
     try {
       const res = await apiClient.get(`/users/me/certifications/${cert._id}/download`, {
@@ -226,8 +180,8 @@ function ProfilePage() {
       });
       // Prefer backend-provided Content-Disposition filename (most reliable)
       const cd = res.headers?.["content-disposition"] || "";
-      const matchStar = cd.match(/filename\*\=UTF-8''([^;]+)/i);
-      const match = cd.match(/filename=\"?([^\";]+)\"?/i);
+      const matchStar = cd.match(/filename\*=UTF-8''([^;]+)/i);
+      const match = cd.match(/filename="?([^";]+)"?/i);
       let filename = matchStar ? decodeURIComponent(matchStar[1]) : match ? match[1] : "";
       if (!filename) filename = cert.fileName || `${cert.name || "certificate"}`;
       // If backend didn't provide extension in fileName, try to infer from mime
@@ -389,17 +343,10 @@ function ProfilePage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Skills I Teach */}
         <div className="bg-white rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4">
             <h2 className="font-family-poppins text-lg font-semibold text-black">
               Skills I Teach
             </h2>
-            <button
-              onClick={() => setIsAddTeachingSkillOpen(true)}
-              className="flex items-center gap-1 text-teal font-family-poppins text-sm font-medium hover:underline"
-            >
-              <Plus size={16} />
-              Add Skills
-            </button>
           </div>
 
           <div className="space-y-3">
@@ -425,17 +372,11 @@ function ProfilePage() {
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleRemoveTeachingSkill(skill._id)}
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <X className="text-gray" size={18} />
-                  </button>
                 </div>
               ))
             ) : (
               <p className="text-gray text-sm text-center py-4">
-                No skills added yet. Click "Add Skills" to get started.
+                No teaching skills added yet. Use Edit Profile to manage skills.
               </p>
             )}
           </div>
@@ -443,17 +384,10 @@ function ProfilePage() {
 
         {/* Skills I'm Learning */}
         <div className="bg-white rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4">
             <h2 className="font-family-poppins text-lg font-semibold text-black">
               Skills I'm Learning
             </h2>
-            <button
-              onClick={() => setIsAddLearningSkillOpen(true)}
-              className="flex items-center gap-1 text-teal font-family-poppins text-sm font-medium hover:underline"
-            >
-              <Plus size={16} />
-              Add Goal
-            </button>
           </div>
 
           <div className="space-y-3">
@@ -479,17 +413,9 @@ function ProfilePage() {
                           {skillSessions} session{skillSessions === 1 ? "" : "s"} completed
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-family-poppins text-sm text-gray">
-                          {skillProgress}%
-                        </span>
-                        <button
-                          onClick={() => handleRemoveLearningSkill(skillId)}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <X className="text-gray" size={18} />
-                        </button>
-                      </div>
+                      <span className="font-family-poppins text-sm text-gray">
+                        {skillProgress}%
+                      </span>
                     </div>
                     {/* Progress Bar - auto-derived from completed sessions in this skill, not editable */}
                     <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -503,7 +429,7 @@ function ProfilePage() {
               })
             ) : (
               <p className="text-gray text-sm text-center py-4">
-                No learning goals added yet. Click "Add Goal" to get started.
+                No learning goals added yet. Use Edit Profile to manage goals.
               </p>
             )}
           </div>
@@ -512,17 +438,10 @@ function ProfilePage() {
 
       {/* Certifications Section */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4">
           <h2 className="font-family-poppins text-lg font-semibold text-black">
             Certifications
           </h2>
-          <button
-            onClick={() => setIsAddCertificationOpen(true)}
-            className="flex items-center gap-1 text-teal font-family-poppins text-sm font-medium hover:underline"
-          >
-            <Plus size={16} />
-            Add Certification
-          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -568,23 +487,11 @@ function ProfilePage() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => handleRemoveCertification(cert._id)}
-                  className="p-1 hover:bg-gray-100 rounded shrink-0"
-                >
-                  <X className="text-gray" size={18} />
-                </button>
-                <button
-                  onClick={() => handleOpenEditCertification(cert)}
-                  className="p-1 hover:bg-gray-100 rounded shrink-0"
-                >
-                  <Pencil className="text-gray" size={18} />
-                </button>
               </div>
             ))
           ) : (
             <p className="text-gray text-sm text-center py-4 col-span-2">
-              No certifications added yet. Click "Add Certification" to get started.
+              No certifications added yet. Use Edit Profile to manage certifications.
             </p>
           )}
         </div>
@@ -729,10 +636,9 @@ function ProfilePage() {
               <div className="flex items-center gap-2"><Mail className="text-teal" size={22}/><h2 className="text-lg font-bold text-black">Email preferences</h2></div>
               <p className="mt-2 text-sm leading-6 text-gray">Choose whether SkillBridge may send occasional product updates. Account, security, payment and session emails are not affected.</p>
               <p className="mt-2 text-xs font-semibold text-gray">Current choice: <span className="capitalize text-black">{(profile.marketingPreference?.status || 'unknown').replace('_', ' ')}</span></p>
-              {!profile.emailVerifiedAt && <p className="mt-2 text-xs text-orange-700">Verify your email before opting in.</p>}
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => updateMarketingPreference(true)} disabled={savingMarketing || !profile.emailVerifiedAt || profile.marketingPreference?.status === 'opted_in'} className="rounded-xl bg-teal-button px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Opt in</button>
+              <button type="button" onClick={() => updateMarketingPreference(true)} disabled={savingMarketing || profile.marketingPreference?.status === 'opted_in'} className="rounded-xl bg-teal-button px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Opt in</button>
               <button type="button" onClick={() => updateMarketingPreference(false)} disabled={savingMarketing || profile.marketingPreference?.status === 'opted_out'} className="rounded-xl border border-[#D0D0D0] px-4 py-2.5 text-sm font-semibold text-dark-blue disabled:opacity-40">Opt out</button>
             </div>
           </div>
@@ -746,38 +652,6 @@ function ProfilePage() {
         user={profile}
       />
 
-      {!isAdmin && (
-        <>
-          <AddSkillModal
-            isOpen={isAddTeachingSkillOpen}
-            onClose={() => setIsAddTeachingSkillOpen(false)}
-            type="teaching"
-            title="Add Skill to Teach"
-          />
-
-          <AddSkillModal
-            isOpen={isAddLearningSkillOpen}
-            onClose={() => setIsAddLearningSkillOpen(false)}
-            type="learning"
-            title="Add Learning Goal"
-          />
-
-          <AddCertificationModal
-            isOpen={isAddCertificationOpen}
-            onClose={() => setIsAddCertificationOpen(false)}
-          />
-          <AddCertificationModal
-            isOpen={isEditCertificationOpen}
-            onClose={() => {
-              setIsEditCertificationOpen(false);
-              setEditingCert(null);
-            }}
-            mode="edit"
-            initialCert={editingCert}
-            onSubmit={handleSubmitEditCertification}
-          />
-        </>
-      )}
       <DocumentViewer
         isOpen={Boolean(previewCert)}
         onClose={() => setPreviewCert(null)}

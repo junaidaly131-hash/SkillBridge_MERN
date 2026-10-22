@@ -26,7 +26,9 @@ test('eligible learner/teacher can be included once', () => {
 });
 test('admin accounts are excluded', () => assert.equal(evaluateCampaignEligibility(eligibleUser({ role: 'admin' }), new Set()).skipReason, 'admin_account'));
 test('suspended accounts are excluded', () => assert.equal(evaluateCampaignEligibility(eligibleUser({ isSuspended: true }), new Set()).skipReason, 'suspended'));
-test('unverified accounts are excluded', () => assert.equal(evaluateCampaignEligibility(eligibleUser({ emailVerifiedAt: null }), new Set()).skipReason, 'email_unverified'));
+test('an authenticated user who explicitly opts in is eligible without a separate verification flag', () => {
+  assert.equal(evaluateCampaignEligibility(eligibleUser({ emailVerifiedAt: null }), new Set()).eligible, true);
+});
 test('unknown consent is excluded', () => assert.equal(evaluateCampaignEligibility(eligibleUser({ marketingPreference: { status: 'unknown' } }), new Set()).skipReason, 'consent_unknown'));
 test('opted-out accounts are excluded', () => assert.equal(evaluateCampaignEligibility(eligibleUser({ marketingPreference: { status: 'opted_out' } }), new Set()).skipReason, 'opted_out'));
 test('suppressed email is excluded', () => assert.equal(evaluateCampaignEligibility(eligibleUser(), new Set(['junaid@example.com'])).skipReason, 'suppressed'));
@@ -152,6 +154,10 @@ test('campaign state machine includes a non-send preparation state', () => {
 });
 test('every campaign endpoint is behind authentication and admin authorization', () => {
   assert.deepEqual(adminEmailCampaignRouter.stack.slice(0, 2).map((layer) => layer.name), ['authenticateToken', 'requireAdmin']);
+});
+test('admin campaign router exposes a protected draft deletion endpoint', () => {
+  const deleteRoute = adminEmailCampaignRouter.stack.find((layer) => layer.route?.path === '/:id' && layer.route.methods.delete);
+  assert.ok(deleteRoute);
 });
 test('mocked Resend client receives stable idempotency and one-click headers without a real send', async () => {
   let observed;
