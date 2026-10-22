@@ -5,6 +5,10 @@ import ExternalContactImport from '../models/ExternalContactImport.js';
 import EmailCampaignDelivery from '../models/EmailCampaignDelivery.js';
 import externalContactRouter from '../routes/externalMarketingContact.routes.js';
 import {
+  ensureEmailCampaignDeliveryIndexes,
+  findLegacyCampaignDeliveryIndexes,
+} from '../services/emailCampaignDeliveryIndexService.js';
+import {
   EXTERNAL_CONTACT_FIELDS,
   csvCell,
   parseCsv,
@@ -102,6 +106,34 @@ test('campaign delivery has source-aware partial unique indexes plus canonical e
   const indexes = EmailCampaignDelivery.schema.indexes();
   assert.ok(indexes.some(([keys, options]) => keys.campaign === 1 && keys.externalContact === 1 && options.unique && options.partialFilterExpression));
   assert.ok(indexes.some(([keys, options]) => keys.campaign === 1 && keys.normalizedEmail === 1 && options.unique));
+});
+
+test('legacy campaign delivery indexes are detected without flagging source-aware indexes', () => {
+  const legacy = { name: 'campaign_1_user_1', key: { campaign: 1, user: 1 }, unique: true };
+  const partial = {
+    ...legacy,
+    partialFilterExpression: { user: { $type: 'objectId' } },
+  };
+  assert.deepEqual(findLegacyCampaignDeliveryIndexes([legacy, partial]).map((index) => index.name), ['campaign_1_user_1']);
+});
+
+test('startup index repair drops the legacy index and creates source-aware replacements', async () => {
+  const dropped = [];
+  const created = [];
+  const collection = {
+    indexes: async () => [{ name: 'campaign_1_user_1', key: { campaign: 1, user: 1 }, unique: true }],
+    dropIndex: async (name) => { dropped.push(name); },
+    createIndex: async (keys, options) => { created.push({ keys, options }); },
+  };
+
+  const result = await ensureEmailCampaignDeliveryIndexes({ collection });
+
+  assert.deepEqual(dropped, ['campaign_1_user_1']);
+  assert.deepEqual(result.dropped, ['campaign_1_user_1']);
+  assert.equal(created.length, 3);
+  assert.deepEqual(created[0].options.partialFilterExpression, { user: { $type: 'objectId' } });
+  assert.deepEqual(created[1].options.partialFilterExpression, { externalContact: { $type: 'objectId' } });
+  assert.equal(created[2].options.unique, true);
 });
 
 test('preview model expires abandoned rows but preserves completed history without expiry', () => {

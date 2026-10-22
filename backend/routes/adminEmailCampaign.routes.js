@@ -197,7 +197,13 @@ router.post('/:id/queue', route(async (req, res) => {
     await logAdminAction({ adminId: req.user.userId, action: 'email_campaign_queued', details: { campaignId: campaign._id, recipients: campaign.frozenAudience?.length } });
     res.json({ campaign: serialize(campaign) });
   } catch (error) {
-    res.status(error.statusCode || 500).json({ message: error.message });
+    const statusCode = error.statusCode || 500;
+    if (statusCode >= 500) console.error('Campaign queue failed:', error);
+    res.status(statusCode).json({
+      message: statusCode >= 500
+        ? "The campaign couldn't be queued. Please try again after the service refreshes."
+        : error.message,
+    });
   }
 }));
 

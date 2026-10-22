@@ -38,6 +38,7 @@ import { setSocketIO, notifyUser } from './utils/notify.js';
 import { startMeetingReminderJob } from './jobs/meetingReminders.js';
 import { startMeetingCompletionJob } from './jobs/completeMeetings.js';
 import { startEmailCampaignWorker } from './jobs/emailCampaignWorker.js';
+import { ensureEmailCampaignDeliveryIndexes } from './services/emailCampaignDeliveryIndexService.js';
 import { isBlockedBetween } from './utils/blocking.js';
 import { addOnlineSocket, removeOnlineSocket, isUserOnline, getOnlineUserIds } from './utils/presence.js';
 
@@ -341,6 +342,10 @@ const PORT = process.env.PORT || 5000;
 // Top-level await (ESM): nothing is served, and no scheduled job runs, until
 // the database is actually reachable.
 await connectDB({ maxAttempts: 0 });
+// Older deployments created a non-partial unique (campaign, user) index.
+// External recipients have user=null, so the second external delivery then
+// failed with E11000. Repair that legacy index before accepting requests.
+await ensureEmailCampaignDeliveryIndexes();
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
