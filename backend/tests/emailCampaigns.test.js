@@ -65,6 +65,25 @@ test('renderer interpolates only first name', () => {
   const rendered = renderCampaignEmail({ content: AI_TUTOR_CAMPAIGN_TEMPLATE, recipientName: 'Junaid Ali', unsubscribeUrl: 'https://example.com/u' });
   assert.ok(rendered.text.includes('Hi Junaid,'));
 });
+test('HTML renderer uses the public SkillBridge logo and responsive branded layout', () => {
+  const original = process.env.FRONTEND_URL;
+  process.env.FRONTEND_URL = 'https://www.skill-bridge.me';
+  try {
+    const rendered = renderCampaignEmail({
+      content: AI_TUTOR_CAMPAIGN_TEMPLATE,
+      recipientName: 'Junaid Ali',
+      unsubscribeUrl: 'https://api.skill-bridge.me/unsubscribe/token',
+    });
+    assert.ok(rendered.html.includes('src="https://www.skill-bridge.me/assets/logo.png"'));
+    assert.ok(rendered.html.includes('alt="SkillBridge"'));
+    assert.ok(rendered.html.includes('@media only screen and (max-width:620px)'));
+    assert.ok(rendered.html.includes('Learn &nbsp;&bull;&nbsp; Teach &nbsp;&bull;&nbsp; Grow'));
+    assert.ok(rendered.html.includes('Unsubscribe from marketing emails'));
+  } finally {
+    if (original === undefined) delete process.env.FRONTEND_URL;
+    else process.env.FRONTEND_URL = original;
+  }
+});
 test('HTML escaping covers quotes and ampersands', () => assert.equal(escapeHtml('A&B"'), 'A&amp;B&quot;'));
 test('unsubscribe token is deterministic and opaque', () => {
   const token = makeUnsubscribeToken(objectId, 'a-long-secret');
