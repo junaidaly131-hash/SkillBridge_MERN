@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Contact, CheckCircle2, Eye, Mail, Plus, RefreshCw, Send, Users } from 'lucide-react';
+import { ArrowRight, Contact, CheckCircle2, Eye, Mail, Plus, RefreshCw, Send, Users } from 'lucide-react';
 import apiClient from '../api/client';
 import { useToast } from '../ui/Toast';
 import ExternalContactsPanel from '../components/EmailCampaigns/ExternalContactsPanel';
@@ -134,6 +134,14 @@ function AdminEmailCampaigns() {
     const campaign = await createCampaign(ids);
     if (campaign) showSuccess('A new draft campaign was created for the selected external contacts.');
   };
+  const handlePrimaryCampaignAction = async () => {
+    if (workspace === 'contacts' && current?.state === 'draft') {
+      setWorkspace('campaigns');
+      return;
+    }
+    const campaign = await createCampaign();
+    if (campaign) setWorkspace('campaigns');
+  };
   const updateContent = (key, value) => setCurrent((item) => ({ ...item, content: { ...item.content, [key]: value } }));
   const save = async (extra = {}) => {
     setBusy(true);
@@ -195,9 +203,10 @@ function AdminEmailCampaigns() {
 
   const missingConfig = getMissingConfig(config);
   const configured = Boolean(config) && missingConfig.length === 0;
+  const canContinueContactDraft = workspace === 'contacts' && current?.state === 'draft';
   return <div className="min-h-screen bg-light-bg p-4 font-family-poppins sm:p-6 lg:p-8">
     <div className="mx-auto max-w-7xl">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold text-black sm:text-3xl">Email Campaigns</h1><p className="mt-1 text-sm text-gray">Create consent-based updates and monitor every recipient safely.</p></div><button onClick={()=>createCampaign()} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-teal-button px-4 py-3 font-semibold text-white disabled:opacity-50"><Plus size={18}/>New campaign</button></div>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold text-black sm:text-3xl">Email Campaigns</h1><p className="mt-1 text-sm text-gray">Create consent-based updates and monitor every recipient safely.</p></div><button onClick={handlePrimaryCampaignAction} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-teal-button px-4 py-3 font-semibold text-white disabled:opacity-50">{canContinueContactDraft?<><ArrowRight size={18}/>Continue to campaign</>:<><Plus size={18}/>New campaign</>}</button></div>
       <div className="mb-5 inline-flex w-full rounded-xl bg-white p-1 shadow-sm sm:w-auto"><button onClick={()=>setWorkspace('campaigns')} className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold sm:flex-none ${workspace==='campaigns'?'bg-dark-blue text-white':'text-gray'}`}><Mail size={17}/>Campaigns</button><button onClick={()=>setWorkspace('contacts')} className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold sm:flex-none ${workspace==='contacts'?'bg-dark-blue text-white':'text-gray'}`}><Contact size={17}/>External Contacts</button></div>
       {workspace==='contacts'?<ExternalContactsPanel selectedIds={current?.state==='draft'?(current.selectedExternalContactIds||[]):[]} onSelectionChange={updateExternalSelection} selectionBusy={busy} hasDraftCampaign={current?.state==='draft'}/>:<>
       <div className="grid items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
