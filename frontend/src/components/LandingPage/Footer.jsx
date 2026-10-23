@@ -15,7 +15,7 @@ function Footer() {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   return (
-    <footer className="text-black font-family-poppins">
+    <footer className="border-t border-teal/25 bg-[linear-gradient(110deg,#EDF7F6_0%,#F9FCFC_48%,#EEF2F8_100%)] text-black shadow-[0_-12px_32px_rgba(23,33,61,0.10),inset_0_1px_0_rgba(255,255,255,0.75)] font-family-poppins">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* A grid, not a flex row. The children already carry col-span
             classes, which do nothing on a flex container - so at 360px the

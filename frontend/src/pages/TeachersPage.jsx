@@ -84,8 +84,8 @@ function TeachersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-light-bg flex flex-col">
-      <Header />
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-white via-light-teal to-white">
+      <Header sticky />
 
       <main className="grow">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

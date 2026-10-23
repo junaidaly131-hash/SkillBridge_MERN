@@ -6,19 +6,19 @@ import { fadeUp, inView } from '../../lib/motion';
 
 function CTA() {
   return (
-    <section className="py-20 bg-white font-family-poppins">
+    <section className="bg-gradient-to-b from-white via-light-teal to-white py-20 font-family-poppins">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <Motion.div
-          className="bg-gradient-blue rounded-2xl px-8 py-16 flex flex-col items-center text-center"
+          className="bg-gradient-blue flex flex-col items-center rounded-2xl px-8 py-16 text-center"
           variants={fadeUp}
           initial="hidden"
           whileInView="visible"
           viewport={inView}
         >
-          <h2 className="text-4xl md:text-5xl font-medium text-white mb-4">
+          <h2 className="mb-4 text-4xl font-medium text-white md:text-5xl">
             Ready to Start Your Journey?
           </h2>
-          <p className="text-lg font-medium text-white/90 max-w-2xl mb-8">
+          <p className="mb-8 max-w-2xl text-lg font-medium text-white/90">
             Join SkillBridge and find someone to learn from, or start teaching what you already know.
           </p>
           <Link to="/signup">
