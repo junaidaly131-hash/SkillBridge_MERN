@@ -39,7 +39,7 @@ function LandingPage() {
 
   return (
     <div className="min-h-screen bg-light-bg flex flex-col">
-      <Header sticky />
+      <Header />
       <main className="grow">
         <div id="hero">
           <Hero />

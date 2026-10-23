@@ -1,21 +1,9 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Button from '../../ui/Button';
 
-function Header({ sticky = false }) {
+function Header() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  const headerClassName = sticky
-    ? 'sticky top-0 z-50 bg-transparent px-3 py-3 font-family-josefin sm:px-6 sm:py-4'
-    : 'bg-light-bg font-family-josefin';
-
-  const containerClassName = sticky
-    ? 'landing-header-float landing-header-glass mx-auto max-w-7xl rounded-2xl border border-transparent px-3 backdrop-blur-xl sm:px-5 md:rounded-full lg:px-7'
-    : 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8';
-
-  const contentClassName = sticky
-    ? 'flex items-center justify-between gap-3 py-2.5'
-    : 'flex items-center justify-between py-4';
 
   // These point at sections of the landing page, but this header is on every
   // public page. From /teachers or /contact the element simply isn't in the
@@ -31,15 +19,15 @@ function Header({ sticky = false }) {
   };
 
   return (
-    <header className={headerClassName}>
-      <div className={containerClassName}>
-        <div className={contentClassName}>
+    <header className="sticky top-0 z-50 bg-transparent px-3 py-3 font-family-josefin sm:px-6 sm:py-4">
+      <div className="landing-header-float landing-header-glass mx-auto max-w-7xl rounded-2xl border border-transparent px-3 backdrop-blur-xl sm:px-5 md:rounded-full lg:px-7">
+        <div className="flex items-center justify-between gap-3 py-2.5">
           {/* Logo */}
           <Link to="/" className="flex items-center">
             <img
               src="/assets/logo.png"
               alt="SkillBridge Logo"
-              className={sticky ? 'h-9 sm:h-10' : 'h-10'}
+              className="h-9 sm:h-10"
             />
           </Link>
 
