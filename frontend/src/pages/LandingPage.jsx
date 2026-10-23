@@ -39,12 +39,12 @@ function LandingPage() {
 
   return (
     <div className="min-h-screen bg-light-bg flex flex-col">
-      <Header />
+      <Header sticky />
       <main className="grow">
         <div id="hero">
           <Hero />
         </div>
-        <div id="how-it-works">
+        <div id="how-it-works" className="scroll-mt-28">
           <HowItWorks />
         </div>
         {/* Nothing below here is needed for the first paint. One boundary for
@@ -52,7 +52,7 @@ function LandingPage() {
         <Suspense fallback={null}>
           <TwoSides />
           <AIMatching />
-          <div id="features">
+          <div id="features" className="scroll-mt-28">
             <Features />
           </div>
           <TrustSafety />

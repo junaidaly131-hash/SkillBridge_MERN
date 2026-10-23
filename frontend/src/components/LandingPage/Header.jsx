@@ -1,9 +1,21 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Button from '../../ui/Button';
 
-function Header() {
+function Header({ sticky = false }) {
   const location = useLocation();
   const navigate = useNavigate();
+
+  const headerClassName = sticky
+    ? 'sticky top-0 z-50 bg-transparent px-3 py-3 font-family-josefin sm:px-6 sm:py-4'
+    : 'bg-light-bg font-family-josefin';
+
+  const containerClassName = sticky
+    ? 'landing-header-float mx-auto max-w-7xl rounded-2xl border border-white/70 bg-[linear-gradient(100deg,rgba(237,247,246,0.62),rgba(255,255,255,0.38),rgba(224,234,255,0.55))] px-3 shadow-[0_10px_30px_rgba(23,33,61,0.08)] backdrop-blur-xl sm:px-5 md:rounded-full lg:px-7'
+    : 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8';
+
+  const contentClassName = sticky
+    ? 'flex items-center justify-between gap-3 py-2.5'
+    : 'flex items-center justify-between py-4';
 
   // These point at sections of the landing page, but this header is on every
   // public page. From /teachers or /contact the element simply isn't in the
@@ -19,20 +31,20 @@ function Header() {
   };
 
   return (
-    <header className="bg-light-bg font-family-josefin ">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center py-4">
+    <header className={headerClassName}>
+      <div className={containerClassName}>
+        <div className={contentClassName}>
           {/* Logo */}
           <Link to="/" className="flex items-center">
             <img
               src="/assets/logo.png"
               alt="SkillBridge Logo"
-              className="h-10"
+              className={sticky ? 'h-9 sm:h-10' : 'h-10'}
             />
           </Link>
 
           {/* Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
+          <nav className="hidden items-center gap-6 md:flex lg:gap-8" aria-label="Primary navigation">
             <button
               onClick={() => scrollToSection('features')}
               className="text-black font-poppins hover:text-teal transition-colors cursor-pointer"
@@ -56,7 +68,7 @@ function Header() {
           </nav>
 
           {/* Buttons */}
-          <div className="flex items-center space-x-1 sm:space-x-4">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
             <Link to="/login">
               <Button variant="secondary">
                 Sign In

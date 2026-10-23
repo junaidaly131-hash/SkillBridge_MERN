@@ -36,6 +36,37 @@
   }
 }
 
+/* The landing-page navigation drifts gently like the hero illustration. The
+   sticky wrapper itself remains fixed, so this transform never changes layout
+   or the section-scroll position. Interaction pauses it to keep every target
+   steady under both a pointer and keyboard focus. */
+@keyframes landing-header-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.landing-header-float {
+  animation: landing-header-float 6s ease-in-out infinite;
+  will-change: transform;
+}
+
+.landing-header-float:hover,
+.landing-header-float:focus-within {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-header-float {
+    animation: none;
+    will-change: auto;
+  }
+}
+
 /* Modal Animations */
 @keyframes modal-fade-in {
   from {
