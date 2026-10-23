@@ -10,7 +10,7 @@ function Header({ sticky = false }) {
     : 'bg-light-bg font-family-josefin';
 
   const containerClassName = sticky
-    ? 'landing-header-float mx-auto max-w-7xl rounded-2xl border border-white/70 bg-[linear-gradient(100deg,rgba(237,247,246,0.62),rgba(255,255,255,0.38),rgba(224,234,255,0.55))] px-3 shadow-[0_10px_30px_rgba(23,33,61,0.08)] backdrop-blur-xl sm:px-5 md:rounded-full lg:px-7'
+    ? 'landing-header-float landing-header-glass mx-auto max-w-7xl rounded-2xl border border-transparent px-3 backdrop-blur-xl sm:px-5 md:rounded-full lg:px-7'
     : 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8';
 
   const contentClassName = sticky
