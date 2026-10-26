@@ -19,6 +19,7 @@ const PopularSkills = lazy(() => import('../components/LandingPage/PopularSkills
 const FeaturedTeachers = lazy(() => import('../components/LandingPage/FeaturedTeachers'));
 const CreditsExplained = lazy(() => import('../components/LandingPage/CreditsExplained'));
 const FAQ = lazy(() => import('../components/LandingPage/FAQ'));
+const MeetFounder = lazy(() => import('../components/LandingPage/MeetFounder'));
 
 function LandingPage() {
   const location = useLocation();
@@ -60,6 +61,7 @@ function LandingPage() {
           <FeaturedTeachers />
           <CreditsExplained />
           <FAQ />
+          <MeetFounder />
         </Suspense>
         <CTA />
       </main>
