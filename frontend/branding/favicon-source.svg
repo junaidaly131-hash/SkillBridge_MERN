@@ -1,0 +1,9 @@
+<svg width="100%" height="100%" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- The existing 47x56 SkillBridge symbol, centered without distortion in a square canvas. -->
+  <svg x="16" y="10" width="64" height="76" viewBox="0 0 47 56" preserveAspectRatio="xMidYMid meet">
+    <rect y="30.0036" width="48.7276" height="13.8761" rx="6.93804" transform="rotate(-38.0058 0 30.0036)" fill="#F74564"/>
+    <path d="M4.2849 35.4869C1.91842 32.4585 2.45495 28.0852 5.48328 25.7187L9.12617 22.872C14.9955 18.2854 23.1498 29.0389 29.2466 24.7592C31.2052 23.3844 20.7869 31.4684 14.015 36.7085C10.9883 39.0505 6.64131 38.5023 4.2849 35.4869Z" fill="#FF9D00"/>
+    <rect x="2" y="45.4802" width="46.2535" height="13.1715" rx="6.58577" transform="rotate(-38.0058 2 45.4802)" fill="#2A9D90"/>
+    <path d="M42.46 22.1998C40.2101 19.328 36.0582 18.8239 33.1864 21.0738L29.7318 23.7803C24.1659 28.1409 32.212 38.1091 26.877 42.7493C25.1631 44.24 34.99 36.4867 41.3641 31.4437C44.213 29.1897 44.7003 25.0594 42.46 22.1998Z" fill="#48CAED"/>
+  </svg>
+</svg>

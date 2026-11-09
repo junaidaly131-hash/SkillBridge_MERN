@@ -71,3 +71,14 @@ test("noindex documents do not retain a homepage canonical", () => {
   assert.doesNotMatch(html, /rel="canonical"/);
   assert.match(html, /name="robots" content="noindex,follow"/);
 });
+
+test("shared head and prerendered pages retain one non-conflicting favicon set", async () => {
+  const sharedHtml = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const html = renderDocument(sharedHtml, fixedPages["/contact"]);
+  assert.equal((html.match(/href="\/favicon-96x96\.png"/g) || []).length, 1);
+  assert.equal((html.match(/href="\/favicon\.ico"/g) || []).length, 1);
+  assert.equal((html.match(/href="\/apple-touch-icon\.png"/g) || []).length, 1);
+  assert.match(html, /rel="icon" type="image\/png" sizes="96x96"/);
+  assert.match(html, /rel="apple-touch-icon" sizes="180x180"/);
+  assert.doesNotMatch(html, /rel="icon"[^>]+logo\.svg/);
+});
