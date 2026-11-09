@@ -11,7 +11,7 @@ import { useToast } from "../ui/Toast";
 function LoginPage() {
   // Not in the sitemap - a login form has nothing to rank for. The title is set
   // only so the browser tab and history entry aren't the generic default.
-  usePageMeta({ title: "Log In", path: "/login" });
+  usePageMeta({ title: "Log In", path: "/login", robots: "noindex,follow" });
 
   const dispatch = useDispatch();
   const navigate = useNavigate();

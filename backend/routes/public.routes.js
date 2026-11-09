@@ -28,7 +28,7 @@ const PUBLICLY_LISTABLE = {
 // certification FILES (a degree scan is not public even when the certificate's
 // name is), verification documents, wallet figures, and anything about
 // sessions with named counterparties.
-const PUBLIC_FIELDS = 'name avatar bio location languages skillsTeaching certifications stats createdAt';
+const PUBLIC_FIELDS = 'name avatar bio location languages skillsTeaching certifications stats createdAt updatedAt';
 
 /**
  * Distinct skills that at least one publicly visible teacher actually teaches.
@@ -98,6 +98,7 @@ function toPublicTeacher(user) {
       avgRating: user.stats?.avgRating || 0,
     },
     memberSince: user.createdAt,
+    updatedAt: user.updatedAt,
     verified: true, // implied by PUBLICLY_LISTABLE, stated so the UI need not infer it
   };
 }

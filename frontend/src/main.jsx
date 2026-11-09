@@ -21,7 +21,14 @@ if (!googleClientId) {
   console.warn('Please create a .env file in the frontend directory with: VITE_GOOGLE_CLIENT_ID=your_client_id_here');
 }
 
-createRoot(document.getElementById('root')).render(
+const rootElement = document.getElementById('root');
+
+// Production builds place a crawlable static snapshot in #root. This app is
+// still a client-rendered SPA, not a hydration build, so remove that snapshot
+// immediately before React takes ownership of the container.
+rootElement.replaceChildren();
+
+createRoot(rootElement).render(
   <StrictMode>
     {googleClientId ? (
       <GoogleOAuthProvider clientId={googleClientId}>

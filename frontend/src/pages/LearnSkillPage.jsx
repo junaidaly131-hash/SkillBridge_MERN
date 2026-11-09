@@ -20,9 +20,12 @@ import { usePageMeta } from "../hooks/usePageMeta";
 function LearnSkillPage() {
   const { slug } = useParams();
 
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [result, setResult] = useState({ slug: null, status: "loading", data: null });
+  const isCurrent = result.slug === slug;
+  const data = isCurrent ? result.data : null;
+  const loading = !isCurrent || result.status === "loading";
+  const notFound = isCurrent && result.status === "not-found";
+  const error = isCurrent && result.status === "error";
 
   const skillName = data?.skill?.name;
 
@@ -31,24 +34,26 @@ function LearnSkillPage() {
     description: skillName
       ? `Book one-on-one ${skillName} sessions with identity-verified teachers in Pakistan. Your first session is free.`
       : undefined,
-    path: `/learn/${slug}`,
+    path: data?.skill ? `/learn/${data.skill.slug}` : undefined,
+    robots: data?.skill ? "index,follow" : "noindex,follow",
+    enabled: Boolean(data?.skill) || notFound || error,
   });
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setNotFound(false);
 
     apiClient
       .get(`/public/skills/${slug}`)
       .then((res) => {
-        if (!cancelled) setData(res.data);
+        if (!cancelled) setResult({ slug, status: "ready", data: res.data });
       })
-      .catch(() => {
-        if (!cancelled) setNotFound(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+      .catch((requestError) => {
+        if (cancelled) return;
+        setResult({
+          slug,
+          status: requestError.response?.status === 404 ? "not-found" : "error",
+          data: null,
+        });
       });
 
     return () => {
@@ -91,7 +96,7 @@ function LearnSkillPage() {
             <div className="flex justify-center py-20">
               <Loader2 className="w-6 h-6 animate-spin text-teal" />
             </div>
-          ) : notFound || !data ? (
+          ) : notFound ? (
             <div className="text-center py-20">
               <p className="font-family-poppins text-xl font-semibold text-black mb-2">
                 Nobody teaches this yet
@@ -106,6 +111,18 @@ function LearnSkillPage() {
               >
                 Browse all teachers
               </Link>
+            </div>
+          ) : error || !data ? (
+            <div className="text-center py-20">
+              <h1 className="font-family-poppins text-xl font-semibold text-black mb-2">
+                This skill page is temporarily unavailable
+              </h1>
+              <p className="font-family-poppins text-sm text-gray mb-6">
+                We couldn't reach the teacher directory. Please try again in a moment.
+              </p>
+              <button type="button" onClick={() => window.location.reload()} className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg">
+                Try again
+              </button>
             </div>
           ) : (
             <>

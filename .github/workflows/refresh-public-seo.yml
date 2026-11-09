@@ -1,0 +1,17 @@
+name: Refresh public SEO pages
+
+on:
+  schedule:
+    # 07:17 Pakistan time. A non-round minute avoids the busiest scheduler slot.
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+    steps:
+      - name: Trigger the Vercel production build
+        if: ${{ env.DEPLOY_HOOK_URL != '' }}
+        run: curl --fail --silent --show-error --request POST "$DEPLOY_HOOK_URL"

@@ -6,24 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!--
-      Everything below is STATIC on purpose.
-
-      Social preview crawlers (WhatsApp, LinkedIn, Facebook, Slack, iMessage)
-      do not run JavaScript. They read this file and nothing else, so anything
-      React sets at runtime is invisible to them. That makes these tags the only
-      thing standing between a shared link and a blank grey card.
-
-      React does override the title and description per route for Google, which
-      does run JS - see usePageMeta in src/hooks/usePageMeta.js. The values here
-      are the site-wide defaults and the ones every share preview will use.
+      These are the homepage defaults. The production post-build generator
+      writes route-specific copies for public pages so search and social bots
+      receive the right metadata without executing JavaScript. usePageMeta
+      keeps the same values correct after hydration and client navigation.
 
       Canonical host is www. The apex redirects to it, and robots.txt, the
       sitemap and og:url all agree, so Google is never left choosing a winner.
     -->
-    <title>SkillBridge — Teach what you know. Learn what you don't.</title>
+    <title>SkillBridge | Skill Exchange &amp; Online Learning in Pakistan</title>
     <meta
       name="description"
-      content="SkillBridge is a skill-exchange marketplace in Pakistan. Book one-on-one sessions with verified teachers, or earn by teaching what you already know."
+      content="SkillBridge is a skill exchange platform in Pakistan. Find verified teachers for one-on-one online learning, or earn by teaching what you know."
     />
     <link rel="canonical" href="https://www.skill-bridge.me/" />
 
@@ -31,24 +25,24 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="SkillBridge" />
     <meta property="og:url" content="https://www.skill-bridge.me/" />
-    <meta property="og:title" content="SkillBridge — Teach what you know. Learn what you don't." />
+    <meta property="og:title" content="SkillBridge | Skill Exchange &amp; Online Learning in Pakistan" />
     <meta
       property="og:description"
-      content="Book one-on-one sessions with verified teachers, or earn by teaching what you already know."
+      content="SkillBridge is a skill exchange platform in Pakistan. Find verified teachers for one-on-one online learning, or earn by teaching what you know."
     />
     <!-- 1200x630. Below that, LinkedIn and WhatsApp drop the image entirely. -->
     <meta property="og:image" content="https://www.skill-bridge.me/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="SkillBridge — teach what you know, learn what you don't." />
+    <meta property="og:image:alt" content="SkillBridge skill exchange and online learning platform in Pakistan" />
     <meta property="og:locale" content="en_US" />
 
     <!-- Twitter/X reads its own namespace rather than falling back to og: -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="SkillBridge — Teach what you know. Learn what you don't." />
+    <meta name="twitter:title" content="SkillBridge | Skill Exchange &amp; Online Learning in Pakistan" />
     <meta
       name="twitter:description"
-      content="Book one-on-one sessions with verified teachers, or earn by teaching what you already know."
+      content="SkillBridge is a skill exchange platform in Pakistan. Find verified teachers for one-on-one online learning, or earn by teaching what you know."
     />
     <meta name="twitter:image" content="https://www.skill-bridge.me/og-image.png" />
 

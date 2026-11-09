@@ -2,10 +2,42 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "rewrites": [
+  "cleanUrls": true,
+  "redirects": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "skill-bridge.me" }],
+      "destination": "https://www.skill-bridge.me/:path*",
+      "permanent": true
     }
+  ],
+  "rewrites": [
+    { "source": "/login", "destination": "/app.html" },
+    { "source": "/signup", "destination": "/app.html" },
+    { "source": "/forgot-password", "destination": "/app.html" },
+    { "source": "/verify", "destination": "/app.html" },
+    { "source": "/unsubscribe/:token", "destination": "/app.html" },
+    { "source": "/dashboard", "destination": "/app.html" },
+    { "source": "/profile", "destination": "/app.html" },
+    { "source": "/profile/:id", "destination": "/app.html" },
+    { "source": "/chat", "destination": "/app.html" },
+    { "source": "/ai-tutor", "destination": "/app.html" },
+    { "source": "/feedback", "destination": "/app.html" },
+    { "source": "/support", "destination": "/app.html" },
+    { "source": "/credits", "destination": "/app.html" },
+    { "source": "/credits/history", "destination": "/app.html" },
+    { "source": "/credits/success", "destination": "/app.html" },
+    { "source": "/credits/cancelled", "destination": "/app.html" },
+    { "source": "/meetings/history", "destination": "/app.html" },
+    { "source": "/meetings/:id/call", "destination": "/app.html" },
+    { "source": "/admin/transactions", "destination": "/app.html" },
+    { "source": "/admin/users", "destination": "/app.html" },
+    { "source": "/admin/email-campaigns", "destination": "/app.html" },
+    { "source": "/admin/audit-log", "destination": "/app.html" },
+    { "source": "/admin/verifications", "destination": "/app.html" },
+    { "source": "/admin/refunds", "destination": "/app.html" },
+    { "source": "/admin/payouts", "destination": "/app.html" },
+    { "source": "/admin/reports", "destination": "/app.html" },
+    { "source": "/admin/session-disputes", "destination": "/app.html" }
   ]
 }

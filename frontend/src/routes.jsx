@@ -29,6 +29,7 @@ const ContactPage = lazy(() => import("./pages/ContactPage"));
 const TeachersPage = lazy(() => import("./pages/TeachersPage"));
 const TeacherProfilePage = lazy(() => import("./pages/TeacherProfilePage"));
 const LearnSkillPage = lazy(() => import("./pages/LearnSkillPage"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 const DashboardLayout = lazy(() => import("./layouts/DashboardLayout"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
@@ -137,6 +138,10 @@ const router = createBrowserRouter([
     {
       path: "/learn/:slug",
       element: <LearnSkillPage />,
+    },
+    {
+      path: "*",
+      element: <NotFoundPage />,
     },
     {
       element: (

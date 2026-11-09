@@ -12,36 +12,42 @@ import { usePageMeta } from "../hooks/usePageMeta";
 function TeacherProfilePage() {
   const { id } = useParams();
 
-  const [teacher, setTeacher] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [result, setResult] = useState({ id: null, status: "loading", teacher: null });
+  const isCurrent = result.id === id;
+  const teacher = isCurrent ? result.teacher : null;
+  const loading = !isCurrent || result.status === "loading";
+  const notFound = isCurrent && result.status === "not-found";
+  const error = isCurrent && result.status === "error";
 
   // Built from the teacher's own skills, so each profile targets something
   // different rather than every page repeating the site description.
   const skillList = teacher?.skills?.map((s) => s.name).join(", ");
   usePageMeta({
-    title: teacher ? `${teacher.name}${skillList ? ` — ${skillList}` : ""}` : "Teacher",
+    title: teacher ? `${teacher.name}${skillList ? ` — ${skillList}` : ""}` : notFound ? "Teacher Not Found" : "Teacher Profile Unavailable",
     description: teacher
       ? `${teacher.name} teaches ${skillList || "on SkillBridge"}${teacher.location ? ` from ${teacher.location}` : ""}. Verified teacher. Book a one-on-one session.`
       : undefined,
-    path: `/teachers/${id}`,
+    path: teacher ? `/teachers/${id}` : undefined,
+    robots: teacher ? "index,follow" : "noindex,follow",
+    type: "profile",
+    enabled: Boolean(teacher) || notFound || error,
   });
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setNotFound(false);
 
     apiClient
       .get(`/public/teachers/${id}`)
       .then((res) => {
-        if (!cancelled) setTeacher(res.data.teacher);
+        if (!cancelled) setResult({ id, status: "ready", teacher: res.data.teacher });
       })
-      .catch(() => {
-        if (!cancelled) setNotFound(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+      .catch((requestError) => {
+        if (cancelled) return;
+        setResult({
+          id,
+          status: requestError.response?.status === 404 ? "not-found" : "error",
+          teacher: null,
+        });
       });
 
     return () => {
@@ -59,7 +65,7 @@ function TeacherProfilePage() {
             <div className="flex justify-center py-20">
               <Loader2 className="w-6 h-6 animate-spin text-teal" />
             </div>
-          ) : notFound || !teacher ? (
+          ) : notFound ? (
             <div className="text-center py-20">
               <p className="font-family-poppins text-xl font-semibold text-black mb-2">
                 This profile isn't available
@@ -73,6 +79,18 @@ function TeacherProfilePage() {
               >
                 Browse all teachers
               </Link>
+            </div>
+          ) : error || !teacher ? (
+            <div className="text-center py-20">
+              <h1 className="font-family-poppins text-xl font-semibold text-black mb-2">
+                This profile is temporarily unavailable
+              </h1>
+              <p className="font-family-poppins text-sm text-gray mb-6 max-w-md mx-auto">
+                We couldn't reach the teacher directory. Please try again in a moment.
+              </p>
+              <button type="button" onClick={() => window.location.reload()} className="font-family-poppins text-sm font-semibold text-white bg-teal-button px-6 py-2.5 rounded-lg">
+                Try again
+              </button>
             </div>
           ) : (
             <>

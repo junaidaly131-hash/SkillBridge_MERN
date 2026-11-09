@@ -19,26 +19,28 @@ function TeachersPage() {
   const page = Math.max(1, parseInt(searchParams.get("page")) || 1);
 
   const [query, setQuery] = useState(skill);
-  const [data, setData] = useState({ teachers: [], totalPages: 1, total: 0 });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const requestKey = `${skill}\u0000${page}`;
+  const [result, setResult] = useState({ key: null, status: "loading", data: null });
+  const isCurrent = result.key === requestKey;
+  const data = isCurrent && result.data ? result.data : { teachers: [], totalPages: 1, total: 0 };
+  const loading = !isCurrent || result.status === "loading";
+  const error = isCurrent && result.status === "error";
   // Links out to the per-skill pages. This is the only route a crawler has to
   // them, so it is a real list of <Link>s rather than a filter control.
   const [skills, setSkills] = useState([]);
   const [showAllSkills, setShowAllSkills] = useState(false);
 
   usePageMeta({
-    title: skill ? `${skill} teachers` : "Find a teacher",
-    description: skill
-      ? `Browse verified ${skill} teachers on SkillBridge and book a one-on-one session.`
-      : "Browse verified teachers on SkillBridge. See their skills, ratings and experience, then book a one-on-one session.",
+    // Filter/search URLs deliberately consolidate into the directory rather
+    // than creating thin, competing indexable pages. Distinct skill intent is
+    // served by /learn/:slug pages only when real teachers exist.
+    title: "Find Verified Teachers in Pakistan",
+    description: "Browse verified teachers on SkillBridge. See their skills, ratings and experience, then book a one-on-one session.",
     path: "/teachers",
   });
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError("");
 
     const params = new URLSearchParams({ page: String(page) });
     if (skill) params.set("skill", skill);
@@ -46,19 +48,16 @@ function TeachersPage() {
     apiClient
       .get(`/public/teachers?${params}`)
       .then((res) => {
-        if (!cancelled) setData(res.data);
+        if (!cancelled) setResult({ key: requestKey, status: "ready", data: res.data });
       })
       .catch(() => {
-        if (!cancelled) setError("Couldn't load teachers right now. Please try again.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setResult({ key: requestKey, status: "error", data: null });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [skill, page]);
+  }, [skill, page, requestKey]);
 
   // Independent of the teacher list: the skill links should be there whether or
   // not the current search matched anything.
@@ -153,7 +152,9 @@ function TeachersPage() {
               <Loader2 className="w-6 h-6 animate-spin text-teal" />
             </div>
           ) : error ? (
-            <p className="text-center font-family-poppins text-sm text-gray py-16">{error}</p>
+            <p className="text-center font-family-poppins text-sm text-gray py-16">
+              Couldn't load teachers right now. Please try again.
+            </p>
           ) : data.teachers.length === 0 ? (
             <div className="text-center py-16">
               <p className="font-family-poppins text-base font-semibold text-black mb-1">

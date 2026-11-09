@@ -14,6 +14,7 @@ function SignUpPage() {
     description:
       "Create a free SkillBridge account. Book your first session at no cost, or start teaching what you already know.",
     path: "/signup",
+    robots: "noindex,follow",
   });
 
   const dispatch = useDispatch();

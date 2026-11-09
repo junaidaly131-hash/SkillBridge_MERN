@@ -2,58 +2,71 @@ import { useEffect } from "react";
 
 const SITE_NAME = "SkillBridge";
 const ORIGIN = "https://www.skill-bridge.me";
-
-// Defaults live in index.html. When a page unmounts its values are restored, so
-// navigating away from, say, /terms doesn't leave its title on the next screen.
-const DEFAULT_TITLE = `${SITE_NAME} — Teach what you know. Learn what you don't.`;
+const DEFAULT_TITLE = `${SITE_NAME} | Skill Exchange & Online Learning in Pakistan`;
 const DEFAULT_DESCRIPTION =
-  "SkillBridge is a skill-exchange marketplace in Pakistan. Book one-on-one sessions with verified teachers, or earn by teaching what you already know.";
+  "SkillBridge is a skill exchange platform in Pakistan. Find verified teachers for one-on-one online learning, or earn by teaching what you know.";
 
-function setMeta(selector, attr, value) {
+function setMeta(selector, value) {
   let el = document.head.querySelector(selector);
-  if (!el) return; // index.html owns these tags; don't invent new ones at runtime
-  el.setAttribute(attr, value);
+  if (!el) {
+    el = document.createElement("meta");
+    const nameMatch = selector.match(/meta\[name="([^"]+)"\]/);
+    const propertyMatch = selector.match(/meta\[property="([^"]+)"\]/);
+    if (nameMatch) el.setAttribute("name", nameMatch[1]);
+    if (propertyMatch) el.setAttribute("property", propertyMatch[1]);
+    document.head.appendChild(el);
+  }
+  el.setAttribute("content", value);
 }
 
 function setCanonical(href) {
-  const el = document.head.querySelector('link[rel="canonical"]');
-  if (el) el.setAttribute("href", href);
+  let el = document.head.querySelector('link[rel="canonical"]');
+  if (!href) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("link");
+    el.setAttribute("rel", "canonical");
+    document.head.appendChild(el);
+  }
+  el.setAttribute("href", href);
 }
 
-/**
- * Per-page title, description and canonical.
- *
- * This is for Google, which executes JavaScript. It does NOT reach social
- * preview crawlers - WhatsApp, LinkedIn and friends read the served HTML and
- * never run React, so they always see the defaults in index.html. That is
- * deliberate: one good brand preview on every shared link beats six that only
- * appear if the crawler did something it doesn't do.
- *
- * Only worth calling on pages a signed-out visitor can reach. Everything behind
- * authentication is disallowed in robots.txt and has nothing to rank.
- *
- * @param {object}  meta
- * @param {string}  meta.title        Page title, without the site name suffix.
- * @param {string} [meta.description] Falls back to the site description.
- * @param {string} [meta.path]        Path for the canonical URL, e.g. "/terms".
- */
-export function usePageMeta({ title, description, path }) {
+/** Keep browser-navigation metadata in sync with the statically generated HTML. */
+export function usePageMeta({
+  title,
+  description,
+  path,
+  robots = "index,follow",
+  type = "website",
+  enabled = true,
+}) {
   useEffect(() => {
-    const previousTitle = document.title;
+    if (!enabled) return undefined;
 
-    document.title = title ? `${title} | ${SITE_NAME}` : DEFAULT_TITLE;
+    const pageTitle = title ? `${title} | ${SITE_NAME}` : DEFAULT_TITLE;
+    const pageDescription = description || DEFAULT_DESCRIPTION;
+    const canonical = path ? `${ORIGIN}${path}` : null;
 
-    const desc = description || DEFAULT_DESCRIPTION;
-    setMeta('meta[name="description"]', "content", desc);
-
-    if (path) setCanonical(`${ORIGIN}${path}`);
+    document.title = pageTitle;
+    setMeta('meta[name="description"]', pageDescription);
+    setMeta('meta[name="robots"]', robots);
+    setMeta('meta[property="og:type"]', type);
+    setMeta('meta[property="og:title"]', pageTitle);
+    setMeta('meta[property="og:description"]', pageDescription);
+    setMeta('meta[property="og:url"]', canonical || ORIGIN);
+    setMeta('meta[name="twitter:title"]', pageTitle);
+    setMeta('meta[name="twitter:description"]', pageDescription);
+    setCanonical(canonical);
 
     return () => {
-      document.title = previousTitle;
-      setMeta('meta[name="description"]', "content", DEFAULT_DESCRIPTION);
-      setCanonical(`${ORIGIN}/`);
+      document.title = SITE_NAME;
+      setMeta('meta[name="description"]', DEFAULT_DESCRIPTION);
+      setMeta('meta[name="robots"]', "noindex,nofollow");
+      setCanonical(null);
     };
-  }, [title, description, path]);
+  }, [title, description, path, robots, type, enabled]);
 }
 
 export default usePageMeta;
